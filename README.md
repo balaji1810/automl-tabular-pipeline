@@ -93,7 +93,7 @@ The fold numbers `1, ..., n` refer to **outer folds**, meaning each can be treat
 ## Running an initial test
 This will train a AutoML system and generate predictions for `X_test`:
 ```bash
-python run.py --task bike_sharing_demand --seed 42 --output-path preds-42-bsd.npy
+python run.py --task bike_sharing_demand --seed 20 --output-path preds-20-bsd.npy
 ```
 
 You are free to modify these files and command line arguments as you see fit.

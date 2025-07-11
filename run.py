@@ -40,7 +40,7 @@ def main(
     # test data to your AutoML solution other than to generate predictions.
     automl = AutoML(seed=seed)
     automl.fit(dataset.X_train, dataset.y_train)
-    test_preds: np.ndarray = automl.predict(dataset.X_test)
+    test_preds: np.ndarray | tuple[np.ndarray, np.ndarray] = automl.predict(dataset.X_test)
 
     # Write the predictions of X_test to disk
     # This will be used by github classrooms to get a performance
