@@ -1,4 +1,4 @@
-# AutoML Exam - SS25 (Tabular Data)
+# AutoML - SS25 (Tabular Data)
 This repo is for the exam assignment of the AutoML SS25 course at the university of Freiburg.
 
 

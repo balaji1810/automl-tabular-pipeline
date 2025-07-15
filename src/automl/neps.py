@@ -1,7 +1,7 @@
 import neps
 from sklearn.pipeline import Pipeline
-from typing import Any
 import numpy as np
+import pandas as pd
 import random
 import torch
 
@@ -15,10 +15,10 @@ def set_seed(seed: int):
 
 def hyperparam_search_neps(
     pipeline: Pipeline,
-    X_train: Any,
-    y_train: Any,
-    X_val: Any,
-    y_val: Any,
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    X_val: pd.DataFrame,
+    y_val: pd.Series,
     param_space: dict,
     random_state: int = 20,
 ) -> Pipeline:

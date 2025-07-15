@@ -39,3 +39,10 @@ class Dataset:
             if y_test_path.exists()
             else None,
         )
+    
+    def load_test_train(self) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series | None]:
+        """
+        Load the training and test data.
+        Returns a tuple of (X_train, y_train, X_test, y_test).
+        """
+        return self.X_train, self.y_train, self.X_test, self.y_test
