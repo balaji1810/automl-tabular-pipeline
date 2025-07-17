@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.inspection import permutation_importance
 from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
 
 class FeatureSelector:
     def __init__(self, max_features: float = 0.75, select_method: Literal["permutation", "tree"] = "permutation", seed: int = 20):
@@ -20,7 +21,7 @@ class FeatureSelector:
         """
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=self.seed)
         
-        reg1 = RandomForestRegressor(random_state=self.seed, n_jobs=-1)
+        reg1 = XGBRegressor(random_state=self.seed, n_jobs=-1)
         reg1.fit(X_train, y_train)
         num_features = floor(len(X_train.columns) * self.max_features)
 
