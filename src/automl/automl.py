@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import logging
 
+import optuna
 import neps
 from sklearn.pipeline import Pipeline
 from xgboost import XGBRegressor
@@ -49,42 +50,17 @@ class AutoML:
         model_pipeline = Pipeline([
             ("preproc", preprocessor),
             ("featureselector", FeatureSelector(seed=self.seed)),
-            ("model", XGBRegressor(random_state=self.seed, n_jobs=-1))
+            ("model", RandomForestRegressor())
         ])
 
-        # pipeline_space = {
-        #     'model__n_estimators' : neps.Integer(50, 500),
-        #     'model__max_depth' : neps.Integer(4, 10),
-        #     'model__gamma' : neps.Float(0, 3),
-        #     'model__learning_rate' : neps.Float(0, 1),
-        #     # 'model__tree_method' : neps.Categorical(['auto', 'exact', 'approx', 'hist'], prior='auto', prior_confidence='medium'),
-        #     'model__reg_lambda': neps.Float(0, 5),
-        #     'model__reg_alpha' : neps.Float(0, 2),
-        #     # 'model__grow_policy' : neps.Categorical(['depthwise', 'lossguide']),
-        #     'model__min_child_weight' : neps.Float(0, 2),
-        #     'featureselector__max_features': neps.Float(0.6, 1.0),
-        #     'featureselector__select_method': neps.Categorical(['permutation', 'tree']),
-        # }
-
-        # pipeline_space = {
-        #     'model__n_estimators' : neps.Integer(90, 1000, prior=100, prior_confidence='medium'),
-        #     'model__criterion' : neps.Categorical(["squared_error", "friedman_mse"], prior='squared_error', prior_confidence='high'),
-        #     'model__max_features' : neps.Categorical(['sqrt', 'log2', 1.0], prior=1.0),
-        #     'model__min_samples_split' : neps.Integer(2, 8, prior=2),
-        #     # 'model__bootstrap' : neps.Categorical([True, False], prior=True),
-        #     'featureselector__max_features': neps.Float(0.6, 1.0),
-        #     'featureselector__select_method': neps.Categorical(['permutation', 'tree'], prior='permutation', prior_confidence='high'),
-        # }
-
-        # model_pipeline = hyperparam_search_neps(model_pipeline, X_train, y_train, X_val, y_val, pipeline_space, self.seed)
-        model_pipeline = hyperparam_search_optuna(model_pipeline, X_train, y_train, X_val, y_val)
-
+        model_pipeline = hyperparam_search_optuna(model_pipeline, X_train, y_train, X_val, y_val, self.seed)
         model = model_pipeline.fit(X_train, y_train)
         self._model = model
 
+
         val_preds = model.predict(X_val)
         val_score = self.metric(y_val, val_preds)
-        logger.info(f"Validation score: {val_score}")
+        logger.info(f"________Validation score: {val_score}")
 
         return self
 
