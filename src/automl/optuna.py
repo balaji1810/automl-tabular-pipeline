@@ -2,6 +2,7 @@ import optuna
 
 import pandas as pd
 from sklearn.pipeline import Pipeline
+import joblib
 
 #Import algorithms / models
 from xgboost import XGBRegressor
@@ -58,14 +59,28 @@ def hyperparam_search_optuna(
         pipeline.set_params(model=model)
         pipeline.set_params(**param)
         pipeline.fit(X=X_train, y=y_train)
-        return float(pipeline.score(X_val, y_val))
-
+        return pipeline.score(X_val, y_val)
+    
     study = optuna.create_study(direction="maximize",
-                                storage="sqlite:///db.sqlite3",
-                                study_name="automl",
-                                load_if_exists=True)
+                                # storage="sqlite:///db.sqlite3",
+                                # study_name="automl",
+                                # load_if_exists=True
+                                )
     study.optimize(objective, n_trials=3)
-    print(study.best_trial.params)
-    # pipeline.set_params(**study.best_trial.params)
+
+    # Rebuild the best model from study.best_trial.params
+    params = study.best_trial.params
+    model_type = params['model']
+    model_params = {
+        k.split("model__")[1]: v for k, v in params.items() if k.startswith("model__")
+    }    
+    if model_type == "xgboost":
+        model = XGBRegressor(random_state=seed, n_jobs=-1, **model_params)
+    elif model_type == "random_forest":
+        model = RandomForestRegressor(random_state=seed, n_jobs=-1, **model_params)
+    else:
+        raise ValueError(f"Unsupported model type: {model_type}")
+    pipeline.set_params(model=model)
 
     return pipeline
+

@@ -56,11 +56,9 @@ class AutoML:
         model_pipeline = hyperparam_search_optuna(model_pipeline, X_train, y_train, X_val, y_val, self.seed)
         model = model_pipeline.fit(X_train, y_train)
         self._model = model
-
-
         val_preds = model.predict(X_val)
         val_score = self.metric(y_val, val_preds)
-        logger.info(f"________Validation score: {val_score}")
+        logger.info(f"Validation score: {val_score}")
 
         return self
 
