@@ -44,7 +44,7 @@ def hyperparam_search_optuna(
         return float(pipeline.score(X_val, y_val))
 
     study = optuna.create_study(direction="maximize")
-    study.optimize(objective, n_trials=100)
+    study.optimize(objective, n_trials=500)
 
     pipeline.set_params(**study.best_trial.params)
     return pipeline
