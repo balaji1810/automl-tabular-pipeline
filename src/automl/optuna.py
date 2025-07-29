@@ -1,4 +1,5 @@
 import optuna
+from optuna.samplers import TPESampler
 
 import pandas as pd
 from sklearn.pipeline import Pipeline
@@ -53,7 +54,8 @@ def hyperparam_search_optuna(
         if model_name == "random_forest":
             model = RandomForestRegressor(random_state=seed)
             param = {
-                "model__max_depth": trial.suggest_int("model__max_depth", 3, 10)
+                "model__max_depth": trial.suggest_int("model__max_depth", 1, 100),
+                # "model__min_samples_split": trial.suggest_float("model__min_samples_split", 0.0, 1.0)
             }
 
         pipeline.set_params(model=model)
@@ -62,24 +64,25 @@ def hyperparam_search_optuna(
         return pipeline.score(X_val, y_val)
     
     study = optuna.create_study(direction="maximize",
+                                sampler=TPESampler()
                                 # storage="sqlite:///db.sqlite3",
                                 # study_name="automl",
                                 # load_if_exists=True
                                 )
-    study.optimize(objective, n_trials=3)
+    study.optimize(objective, n_trials=1000)
 
-    # Rebuild the best model from study.best_trial.params
+    # Rebuild the best model from study.best_trial.params and set as a model in the pipeline
     params = study.best_trial.params
     model_type = params['model']
-    model_params = {
-        k.split("model__")[1]: v for k, v in params.items() if k.startswith("model__")
-    }    
+    model_params = {k.split("model__")[1]: v for k, v in params.items() if k.startswith("model__")
+                    }    
     if model_type == "xgboost":
         model = XGBRegressor(random_state=seed, n_jobs=-1, **model_params)
     elif model_type == "random_forest":
         model = RandomForestRegressor(random_state=seed, n_jobs=-1, **model_params)
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
+    
     pipeline.set_params(model=model)
 
     return pipeline
