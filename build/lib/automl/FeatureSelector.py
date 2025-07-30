@@ -17,14 +17,7 @@ except ImportError:
 warnings.filterwarnings("ignore", message="Bins whose width are too small*", category=UserWarning)
 
 class FeatureSelector:
-    #TODO add params [bool] for alg specific feature engineering:
     def __init__(self, max_features: float = 0.75, select_method: Literal["permutation", "tree"] = "permutation", 
-                 add_polynomial_features_xgb: bool = False,   
-                 add_binning_features_xgb: bool = False, 
-                 add_statistical_features_xgb: bool = False,
-                 add_quantile_binning_lgb: bool = False,
-                 add_categorical_encodings_lgb: bool = False,
-                 add_aggregation_features_lgb: bool = False, 
                  algorithm: str = "xgboost", seed: int = 20):
         self.max_features = max_features
         self.select_method = select_method
@@ -42,14 +35,6 @@ class FeatureSelector:
         self.numerical_cols = []
         self.categorical_cols = []
         self._binning_valid_cols = []  # Store valid columns for binning
-
-        # Bool for algorithm-specific feature engineering
-        self.add_polynomial_features_xgb = add_polynomial_features_xgb
-        self.add_binning_features_xgb = add_binning_features_xgb
-        self.add_statistical_features_xgb = add_statistical_features_xgb
-        self.add_quantile_binning_lgb = add_quantile_binning_lgb
-        self.add_categorical_encodings_lgb = add_categorical_encodings_lgb
-        self.add_aggregation_features_lgb =add_aggregation_features_lgb
 
     def _add_polynomial_features_xgb(self, X: pd.DataFrame) -> pd.DataFrame:
         """Add polynomial features for XGBoost"""
@@ -255,22 +240,14 @@ class FeatureSelector:
         
         if self.algorithm == "xgboost":
             # XGBoost-specific features
-            #TODO add conditional for to turn on and off each feature engineering methods
-            if self.add_polynomial_features_xgb:
-                X_engineered = self._add_polynomial_features_xgb(X_engineered)
-            if self.add_binning_features_xgb:
-                X_engineered = self._add_binning_features_xgb(X_engineered)
-            if self.add_statistical_features_xgb:
-                X_engineered = self._add_statistical_features_xgb(X_engineered)
+            X_engineered = self._add_polynomial_features_xgb(X_engineered)
+            X_engineered = self._add_binning_features_xgb(X_engineered)
+            X_engineered = self._add_statistical_features_xgb(X_engineered)
         elif self.algorithm == "lightgbm":
             # LightGBM-specific features
-            #TODO add conditional for to turn on and off each feature engineering methods
-            if self.add_quantile_binning_lgb:
-                X_engineered = self._add_quantile_binning_lgb(X_engineered)
-            if self.add_categorical_encodings_lgb:
-                X_engineered = self._add_categorical_encodings_lgb(X_engineered, y)
-            if self.add_aggregation_features_lgb:
-                X_engineered = self._add_aggregation_features_lgb(X_engineered)
+            X_engineered = self._add_quantile_binning_lgb(X_engineered)
+            X_engineered = self._add_categorical_encodings_lgb(X_engineered, y)
+            X_engineered = self._add_aggregation_features_lgb(X_engineered)
         
         return X_engineered
 

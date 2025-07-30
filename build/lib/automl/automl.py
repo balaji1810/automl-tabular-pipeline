@@ -136,9 +136,6 @@ class AutoML:
                 "model__colsample_bytree": trial.suggest_float("model__colsample_bytree", 0.2, 1.0),
                 "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),
                 "featureselector__select_method": trial.suggest_categorical("featureselector__select_method", ["permutation", "tree"]),
-                "featureselector__add_polynomial_features_xgb": trial.suggest_categorical("featureselector__add_polynomial_features_xgb", [True, False]),
-                "featureselector__add_binning_features_xgb": trial.suggest_categorical("featureselector__add_binning_features_xgb", [True, False]),
-                "featureselector__add_statistical_features_xgb": trial.suggest_categorical("featureselector__add_statistical_features_xgb", [True, False]),
             }
             
             if param["model__booster"] in ["gbtree", "dart"]:
@@ -230,9 +227,6 @@ class AutoML:
                 "model__reg_alpha": trial.suggest_float("model__reg_alpha", 1e-8, 10.0, log=True),
                 "model__reg_lambda": trial.suggest_float("model__reg_lambda", 1e-8, 10.0, log=True),
                 "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.7, 1.0),
-                "featureselector__add_quantile_binning_lgb": trial.suggest_categorical("featureselector__add_quantile_binning_lgb", [True, False]),
-                "featureselector__add_categorical_encodings_lgb": trial.suggest_categorical("featureselector__add_categorical_encodings_lgb", [True, False]),
-                "featureselector__add_aggregation_features_lgb": trial.suggest_categorical("featureselector__add_aggregation_features_lgb", [True, False]),
             }
             
             # Progressive resource allocation: Use budget for n_estimators control

@@ -31,10 +31,7 @@ def hyperparam_search_optuna(
             "model__subsample": trial.suggest_float("model__subsample", 0.2, 1.0),
             "model__colsample_bytree": trial.suggest_float("model__colsample_bytree", 0.2, 1.0),
             "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),
-            "featureselector__select_method": trial.suggest_categorical("featureselector__select_method", ["permutation", "tree"]),            
-            "featureselector__add_polynomial_features_xgb": trial.suggest_categorical("featureselector__add_polynomial_features_xgb", [True, False]),
-            "featureselector__add_binning_features_xgb": trial.suggest_categorical("featureselector__add_binning_features_xgb", [True, False]),
-            "featureselector__add_statistical_features_xgb": trial.suggest_categorical("featureselector__add_statistical_features_xgb", [True, False]),
+            "featureselector__select_method": trial.suggest_categorical("featureselector__select_method", ["permutation", "tree"]),
         }
 
         if param["model__booster"] in ["gbtree", "dart"]:
