@@ -2,7 +2,7 @@
 name = "automl"
 license = { file = "LICENSE" }
 version = "0.1.0"
-dependencies = ["scikit-learn", "openml", "pandas", "numpy<2.0", "IPython", "neural-pipeline-search", "xgboost", "matplotlib", "optuna"]
+dependencies = ["scikit-learn", "openml", "pandas", "numpy<2.0", "IPython", "neural-pipeline-search", "xgboost", "lightgbm", "matplotlib", "optuna", "botorch"]
 requires-python = ">=3.10"
 authors = [{ name = "Balaji S B", email = "balajibavimane@gmail.com" }, { name = "Surbhi Nair", email = "user@user.com" }, { name = "Kenjiro Ono", email = "user@user.com" }]
 readme = "README.md"
