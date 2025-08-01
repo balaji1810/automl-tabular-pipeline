@@ -4,34 +4,46 @@ import numpy as np
 from pathlib import Path
 from scipy.stats import skew, kurtosis
 from sklearn.metrics import r2_score
+from sklearn.model_selection import train_test_split
 from sklearn.dummy import DummyRegressor
 
+from sklearn.neural_network import MLPRegressor
 import torch
 
-from xgboost import XGBRegressor
-from lightgbm import LGBMRegressor
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
-from sklearn.svm import SVR
-from tabpfn import TabPFNRegressor
-
-
-import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.discriminant_analysis import StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, RobustScaler
 
+from sklearn.neural_network import MLPRegressor
+from xgboost import XGBRegressor
+from lightgbm import LGBMRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, HistGradientBoostingRegressor
+from sklearn.linear_model import LinearRegression, BayesianRidge
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.svm import SVR
+from tabpfn import TabPFNRegressor
+
+import openml
+
+
 algorithms = [
     LGBMRegressor(n_jobs=-1),
     XGBRegressor(enable_categorical = True, n_jobs = -1),
     RandomForestRegressor(n_jobs=-1),
-    LinearRegression(n_jobs=-1),
-    SVR(),
+    DecisionTreeRegressor(),
+    HistGradientBoostingRegressor(),
+    LinearRegression(),
+    BayesianRidge(),
+    GradientBoostingRegressor(),
+    MLPRegressor(),
+    # SVR(),
     # TabPFNRegressor(n_jobs=-1, ignore_pretraining_limits=True),
     # device="cuda" if torch.cuda.is_available() else "cpu",
 ]
+
+algorithms_dict = {algo.__class__.__name__: algo for algo in algorithms}
 
 
 datasets = [
@@ -56,6 +68,16 @@ def detect_column_types(X: pd.DataFrame) -> tuple[list[str], list[str]]:
     #         cat_cols.append(col)
     #         num_cols.remove(col)
     return num_cols, cat_cols
+
+
+# def load_dataset(name: str, fold: int = 1):
+#     """Load X_train, y_train, X_test, y_test for a given dataset and fold."""
+#     base = Path(__file__).resolve().parents[2] / "data" / name / str(fold)
+#     X_train = pd.read_parquet(base / "X_train.parquet")
+#     y_train = pd.read_parquet(base / "y_train.parquet").iloc[:, 0]
+#     X_test  = pd.read_parquet(base / "X_test.parquet")
+#     y_test  = pd.read_parquet(base / "y_test.parquet").iloc[:, 0]
+#     return X_train, y_train, X_test, y_test
 
 
 def build_preprocessor(
@@ -85,67 +107,211 @@ def build_preprocessor(
     preprocessor.set_output(transform="pandas")
     return preprocessor
 
+
 def extract_meta_features(X: pd.DataFrame, y: pd.Series) -> dict:
-    """Compute numeric-only meta-features for regression datasets."""
+    """Compute meta-features for regression datasets."""
     # Basic sizes
     n, d = X.shape
-    meta = {
+    meta_features = {
         "n_samples": n,
         "n_features": d,
+        "log_n_samples": np.log(n + 1) if n > 0 else 0.0,
+        "log_n_features": np.log(d + 1) if d > 0 else 0.0,
         "feature_ratio": d / n if n else 0.0,
+        "target_mean": float(y.mean()) if len(y) else 0.0,
         "target_std": float(y.std()) if len(y) else 0.0,
         "target_skew": float(skew(y)) if len(y) else 0.0,
+        "target_kurtosis": float(kurtosis(y)) if len(y) else 0.0,
     }
 
     # Restrict to numeric cols
     X_num = X.select_dtypes(include=[np.number])
-    if X_num.shape[1] == 0:
+    if X_num.shape[1] == 0: 
         # no numeric features → fill zeros
-        meta.update({
+        meta_features.update({
             "mean_feature_skew": 0.0,
             "mean_feature_kurtosis": 0.0,
-            "zero_var_pct": 1.0,
+            # "zero_var_pct": 1.0,
             "mean_abs_corr": 0.0,
             "max_abs_corr": 0.0,
         })
-        return meta
-
-    # 1) Per-feature mean skew/kurtosis
-    # Compute skew/kurtosis across columns means (column-wise)
-    means = X_num.mean(axis=0)
-    meta["mean_feature_skew"]     = float(skew(means))
-    meta["mean_feature_kurtosis"] = float(kurtosis(means))
-
-    # 2) Zero-variance percentage
-    zero_var = (X_num.var(axis=0) == 0).sum()
-    meta["zero_var_pct"] = float(zero_var / X_num.shape[1])
-
-    # 3) Pairwise correlations (only if >1 numeric column)
-    if X_num.shape[1] > 1:
-        corr = X_num.corr().abs()
-        # take upper triangle without diagonal
-        iu = np.triu_indices(corr.shape[0], k=1)
-        tri_vals = corr.values[iu]
-        meta["mean_abs_corr"] = float(np.nanmean(tri_vals))
-        meta["max_abs_corr"]  = float(np.nanmax(tri_vals))
+        
     else:
-        meta["mean_abs_corr"] = 0.0
-        meta["max_abs_corr"]  = 0.0
+        # 1) Per-feature mean skew/kurtosis
+        # Compute skew/kurtosis across columns means (column-wise)
+        means = X_num.mean(axis=0)
+        meta_features["mean_feature_skew"]     = float(skew(means))
+        meta_features["mean_feature_kurtosis"] = float(kurtosis(means))
 
-    return meta
+        # 2) Zero-variance percentage
+        # zero_var = (X_num.var(axis=0) == 0).sum()
+        # meta_features["zero_var_pct"] = float(zero_var / X_num.shape[1])
 
+        # 3) Pairwise correlations (only if >1 numeric column)
+        if X_num.shape[1] > 1:
+            corr = X_num.corr().abs()
+            # take upper triangle without diagonal
+            iu = np.triu_indices(corr.shape[0], k=1)
+            tri_vals = corr.values[iu]
+            meta_features["mean_abs_corr"] = float(np.nanmean(tri_vals))
+            meta_features["max_abs_corr"]  = float(np.nanmax(tri_vals))
+        else:
+            meta_features["mean_abs_corr"] = 0.0
+            meta_features["max_abs_corr"]  = 0.0
 
-def load_dataset(name: str, fold: int = 1):
-    """Load X_train, y_train, X_test, y_test for a given dataset and fold."""
-    base = Path(__file__).resolve().parents[2] / "data" / name / str(fold)
-    X_train = pd.read_parquet(base / "X_train.parquet")
-    y_train = pd.read_parquet(base / "y_train.parquet").iloc[:, 0]
-    X_test  = pd.read_parquet(base / "X_test.parquet")
-    y_test  = pd.read_parquet(base / "y_test.parquet").iloc[:, 0]
-    return X_train, y_train, X_test, y_test
+    # 4) Probing Features
+    
+    # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.3, random_state=42
+    )
+    sample_fraction = 0.01  # 1% sample for probing
+    # 4.1) Mean value predictor performance (baseline)
+    dummy_mean = DummyRegressor(strategy='mean')
+    dummy_mean.fit(X_train, y_train)
+    y_pred_mean = dummy_mean.predict(X_test)
+    
+    meta_features['mean_predictor_r2'] = r2_score(y_test, y_pred_mean)
+    
+    # 4.2) Decision stump performance (depth=1 tree)
+    stump = DecisionTreeRegressor(max_depth=1, random_state=42)
+    stump.fit(X_train, y_train)
+    y_pred_stump = stump.predict(X_test)
+    
+    meta_features['decision_stump_r2'] = r2_score(y_test, y_pred_stump)
+    
+    # Relative improvement over mean predictor
+    meta_features['stump_vs_mean_r2_ratio'] = (
+        meta_features['decision_stump_r2'] / max(meta_features['mean_predictor_r2'], 1e-10)
+    )
+    
+    # 4.3) Simple rule model performance (linear regression)
+    simple_rule = LinearRegression()
+    simple_rule.fit(X_train, y_train)
+    y_pred_rule = simple_rule.predict(X_test)
+    
+    meta_features['simple_rule_r2'] = r2_score(y_test, y_pred_rule)
+        
+    # Relative improvement over mean predictor
+    meta_features['rule_vs_mean_r2_ratio'] = (
+        meta_features['simple_rule_r2'] / max(meta_features['mean_predictor_r2'], 1e-10)
+    )
+    
+    # 4.4) Performance of algorithms on 1% of data
+    if len(X_train) > 100:  # Only if we have enough data
+        # Sample 1% of training data
+        sample_size = max(int(len(X_train) * sample_fraction), 10)
+        sample_indices = np.random.choice(len(X_train), sample_size, replace=False)
+        X_sample = X_train[sample_indices]
+        y_sample = y_train[sample_indices]
+        
+        for algo_name, algorithm in algorithms_dict.items():
+            try:
+                # Clone the algorithm to avoid fitting issues
+                from sklearn.base import clone
+                algo_clone = clone(algorithm)
+                
+                # Fit on 1% sample
+                algo_clone.fit(X_sample, y_sample)
+                
+                # Predict on test set
+                y_pred_algo = algo_clone.predict(X_test)
+                
+                # Store performance
+                algo_r2 = r2_score(y_test, y_pred_algo)
+                
+                meta_features[f'{algo_name}_1pct_r2'] = algo_r2
+                
+                # Relative performance vs baselines
+                meta_features[f'{algo_name}_vs_mean_r2_ratio'] = (
+                    algo_r2 / max(meta_features['mean_predictor_r2'], 1e-10)
+                )
+                meta_features[f'{algo_name}_vs_stump_r2_ratio'] = (
+                    algo_r2 / max(meta_features['decision_stump_r2'], 1e-10)
+                )
+                
+            except Exception as e:
+                print(f"Error evaluating {algo_name} on 1% data: {e}")
+                meta_features[f'{algo_name}_1pct_r2'] = -1.0
+                meta_features[f'{algo_name}_1pct_rmse'] = float('inf')
+                meta_features[f'{algo_name}_vs_mean_r2_ratio'] = 0.0
+                meta_features[f'{algo_name}_vs_stump_r2_ratio'] = 0.0
+    
+    # 4.5) Additional derived meta-features
+    meta_features['baseline_difficulty'] = 1 - meta_features['mean_predictor_r2']
+    # meta_features['linear_separability'] = meta_features['simple_rule_r2']
+    meta_features['tree_advantage'] = (
+        meta_features['decision_stump_r2'] - meta_features['simple_rule_r2']
+    )
 
+    # 5) Algorithm suitability indicators
+    meta_features['tabpfn_suitable'] = 1 if (n < 1000 and d < 100 and n*d < 10000) else 0
+    meta_features['svm_suitable'] = 1 if (100 <= n <= 10000 and d <= 1000) else 0
+    meta_features['linear_favorable'] = 1 if (meta_features['simple_rule_r2'] > 0.7 and 
+                                            meta_features['target_skew'] < 2) else 0
 
-def main():
+    return meta_features
+
+def train_meta_model(X: pd.DataFrame,y: pd.Series, model_type: str = "nn"):
+    """
+    Train a meta-model on the extracted meta-features and best selected algorithm.
+    """
+    
+      
+def load_openml_dataset(
+        MajorityClassSize: tuple[int, int],
+        MaxNominalAttDistinctValues: tuple[int, int], 
+        MinorityClassSize: tuple[int, int],            
+        NumberOfClasses: tuple[int, int], 
+        NumberOfFeatures: tuple[int, int], 
+        NumberOfInstances: tuple[int, int],
+        NumberOfInstancesWithMissingValues: tuple[int, int],  
+        NumberOfNumericFeatures: tuple[int, int], 
+        NumberOfSymbolicFeatures: tuple[int, int],
+        max_datasets: int = 10):
+    
+        datasets = openml.datasets.list_datasets(output_format='dataframe')
+        filtered = datasets[
+                (datasets['MajorityClassSize'] <= MajorityClassSize[1]) &
+                (datasets['MajorityClassSize'] >= MajorityClassSize[0]) &
+                (datasets['MaxNominalAttDistinctValues'] <= MaxNominalAttDistinctValues[1]) &
+                (datasets['MaxNominalAttDistinctValues'] >= MaxNominalAttDistinctValues[0]) &
+                (datasets['MinorityClassSize'] <= MinorityClassSize[1]) &
+                (datasets['MinorityClassSize'] >= MinorityClassSize[0]) &
+                (datasets['NumberOfClasses'] <= NumberOfClasses[1]) &
+                (datasets['NumberOfClasses'] >= NumberOfClasses[0]) &
+                (datasets['NumberOfFeatures'] <= NumberOfFeatures[1]) &
+                (datasets['NumberOfFeatures'] >= NumberOfFeatures[0]) &
+                (datasets['NumberOfInstances'] <= NumberOfInstances[1]) &
+                (datasets['NumberOfInstances'] >= NumberOfInstances[0]) &
+                (datasets['NumberOfInstancesWithMissingValues'] <= NumberOfInstancesWithMissingValues[1]) &
+                (datasets['NumberOfInstancesWithMissingValues'] >= NumberOfInstancesWithMissingValues[0]) &
+                (datasets['NumberOfNumericFeatures'] <= NumberOfNumericFeatures[1]) &
+                (datasets['NumberOfNumericFeatures'] >= NumberOfNumericFeatures[0]) &
+                (datasets['NumberOfSymbolicFeatures'] <= NumberOfSymbolicFeatures[1]) &
+                (datasets['NumberOfSymbolicFeatures'] >= NumberOfSymbolicFeatures[0])
+            ]
+        
+        loaded_datasets = []
+        filtered_ids = filtered['did'].tolist()[:max_datasets]
+        
+        for did in filtered_ids:
+            dataset = openml.datasets.get_dataset(did)
+            X, y, categorical_indicator, attribute_names = dataset.get_data(
+                dataset_format="dataframe", target=dataset.default_target_attribute
+            )
+            preprocessor = build_preprocessor(pd.concat([X, y], ignore_index=True)) # type: ignore
+            X_processed = preprocessor.fit_transform(X)
+            loaded_datasets.append((X_processed, categorical_indicator, attribute_names))        
+
+        return loaded_datasets
+    
+    
+def algorithms_evaluation(algorithms: list, datasets: list):
+    """
+    Input: a list of algorithms, list of datasets, and fold number.
+    Output: saves meta-dataset to CSV.
+    """
     records = []
 
     for ds in datasets:
@@ -163,17 +329,15 @@ def main():
             name = Algo.__class__.__name__
             print(f"   • Training {name}...", end=" ", flush=True)
             try:
-                # model = Algo()
                 model = Pipeline([
-                            ("preproc", preprocessor),
-                            ("model", Algo)
-                        ])
+                    ("preproc", preprocessor),
+                    ("model", Algo)
+                ])
                 model.fit(X_train, y_train)
                 preds = model.predict(X_test)
                 r2 = r2_score(y_test, preds)
             except Exception as e:
                 print(f"[Error: {e}]")
-                # fallback to dummy
                 dummy = DummyRegressor()
                 dummy.fit(X_train, y_train)
                 r2 = r2_score(y_test, dummy.predict(X_test))
@@ -183,21 +347,87 @@ def main():
 
         # 3) compute ranks (1 = best)
         sorted_names = sorted(scores, key=lambda k: -scores[k])
-        ranks = { name: idx+1 for idx, name in enumerate(sorted_names) }
+        algo = sorted_names[0]
 
         # 4) assemble record
         record = {
             "dataset": ds,
             **meta,
-            **{ f"{n}_r2": scores[n] for n in scores },
-            **{ f"{n}_rank": ranks[n] for n in ranks },
+            "Algorithm": algo,
+            **{f"{n}_r2": scores[n] for n in scores},
         }
         records.append(record)
+        
+    return records
 
-    # 5) save to CSV
-    df = pd.DataFrame(records)
-    df.to_csv("meta_dataset.csv", index=False)
-    print("\nSaved meta-dataset to meta_dataset.csv")
+    # # 5) save to CSV
+    # df = pd.DataFrame(records)
+    # df.to_csv("meta_dataset.csv", index=False)
+    # print("\nSaved meta-dataset to meta_dataset.csv")
+    
+
+
+def main():
+    
+    load_openml_dataset
+    algorithms_evaluation(algorithms=algorithms, datasets=datasets)
+    
+    # records = []
+
+    # for i in range(1, 11):
+    #     print(f"→ Processing fold: {i}")
+    #     for ds in datasets:
+    #         print(f"→ Processing dataset: {ds}")
+    #         X_train, y_train, X_test, y_test = load_dataset(ds, fold=i)
+
+    #         preprocessor = build_preprocessor(pd.concat([X_train, X_test], ignore_index=True))
+
+    #         # 1) extract meta-features
+    #         meta = extract_meta_features(X_train, y_train)
+
+    #         # 2) evaluate each algorithm
+    #         scores = {}
+    #         for Algo in algorithms:
+    #             name = Algo.__class__.__name__
+    #             print(f"   • Training {name}...", end=" ", flush=True)
+    #             try:
+    #                 # model = Algo()
+    #                 model = Pipeline([
+    #                             ("preproc", preprocessor),
+    #                             ("model", Algo)
+    #                         ])
+    #                 model.fit(X_train, y_train)
+    #                 preds = model.predict(X_test)
+    #                 r2 = r2_score(y_test, preds)
+    #             except Exception as e:
+    #                 print(f"[Error: {e}]")
+    #                 # fallback to dummy
+    #                 dummy = DummyRegressor()
+    #                 dummy.fit(X_train, y_train)
+    #                 r2 = r2_score(y_test, dummy.predict(X_test))
+
+    #             scores[name] = float(r2)
+    #             print(f"R²={r2:.4f}")
+
+    #         # 3) compute ranks (1 = best)
+    #         sorted_names = sorted(scores, key=lambda k: -scores[k])
+    #         algo = sorted_names[0]
+    #         # ranks = {name: rank + 1 for rank, name in enumerate(sorted_names)}
+
+    #         # 4) assemble record
+    #         record = {
+    #             # "dataset": ds,
+    #             **meta,
+    #             # **{ f"{n}_r2": scores[n] for n in scores },
+    #             "Algorithm": algo,
+    #             # **{ f"{n}_rank": ranks[n] for n in ranks },
+    #         }
+    #         records.append(record)
+
+    # # 5) save to CSV
+    # df = pd.DataFrame(records)
+    # df.to_csv("meta_dataset.csv", index=False)
+    # print("\nSaved meta-dataset to meta_dataset.csv")
 
 
 if __name__ == "__main__":
