@@ -128,7 +128,7 @@ class AutoML:
             
             param = {
                 "model__objective": "reg:squarederror",
-                "model__n_estimators": budget,  # Use budget as n_estimators
+                "model__n_estimators": trial.suggest_int("budget", 50, 500),  # Use budget as n_estimators
                 "model__booster": trial.suggest_categorical("model__booster", ["gbtree", "gblinear"]),
                 "model__lambda": trial.suggest_float("model__lambda", 1e-8, 1.0, log=True),
                 "model__alpha": trial.suggest_float("model__alpha", 1e-8, 1.0, log=True),
