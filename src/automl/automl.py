@@ -34,7 +34,7 @@ class AutoML:
         metric: str = "r2",
         correlation_threshold: float = 0.7,
         n_trials: int = 100,
-        use_mult_algorithms: bool = True
+        use_mult_algorithms: bool = False
     ) -> None:
         self.seed = seed
         self.metric = METRICS[metric]

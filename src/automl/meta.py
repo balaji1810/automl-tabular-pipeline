@@ -38,7 +38,7 @@ algorithms = [
     BayesianRidge(),
     GradientBoostingRegressor(),
     MLPRegressor(),
-    # SVR(),
+    SVR(),
     # TabPFNRegressor(n_jobs=-1, ignore_pretraining_limits=True),
     # device="cuda" if torch.cuda.is_available() else "cpu",
 ]
@@ -63,10 +63,10 @@ def detect_column_types(X: pd.DataFrame) -> tuple[list[str], list[str]]:
     num_cols = X.select_dtypes(include=["number"]).columns.tolist()
     cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
     # Also treat low-cardinality ints as categorical
-    # for col in X.select_dtypes(include=["int"]):
-    #     if X[col].nunique() < 20 and col not in cat_cols:
-    #         cat_cols.append(col)
-    #         num_cols.remove(col)
+    for col in X.select_dtypes(include=["int"]):
+        if X[col].nunique() < 20 and col not in cat_cols:
+            cat_cols.append(col)
+            num_cols.remove(col)
     return num_cols, cat_cols
 
 
@@ -162,9 +162,13 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series) -> dict:
     # 4) Probing Features
     
     # Split data
-        X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42
-    )
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+    # Preprocess (impute + encode) X_train and X_test
+    preprocessor = build_preprocessor(pd.concat([X_train, X_test], ignore_index=True))
+    X_train = preprocessor.fit_transform(X_train)
+    X_test = preprocessor.transform(X_test)
+
     sample_fraction = 0.01  # 1% sample for probing
     # 4.1) Mean value predictor performance (baseline)
     dummy_mean = DummyRegressor(strategy='mean')
@@ -187,9 +191,9 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series) -> dict:
     
     # 4.3) Simple rule model performance (linear regression)
     simple_rule = LinearRegression()
-    simple_rule.fit(X_train, y_train)
-    y_pred_rule = simple_rule.predict(X_test)
-    
+    simple_rule.fit(np.array(X_train), np.array(y_train))
+    y_pred_rule = simple_rule.predict(np.array(X_test))
+
     meta_features['simple_rule_r2'] = r2_score(y_test, y_pred_rule)
         
     # Relative improvement over mean predictor
@@ -202,9 +206,9 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series) -> dict:
         # Sample 1% of training data
         sample_size = max(int(len(X_train) * sample_fraction), 10)
         sample_indices = np.random.choice(len(X_train), sample_size, replace=False)
-        X_sample = X_train[sample_indices]
-        y_sample = y_train[sample_indices]
-        
+        X_sample = X_train.iloc[sample_indices]
+        y_sample = y_train.iloc[sample_indices]
+
         for algo_name, algorithm in algorithms_dict.items():
             try:
                 # Clone the algorithm to avoid fitting issues
@@ -252,72 +256,204 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series) -> dict:
 
     return meta_features
 
+
 def train_meta_model(X: pd.DataFrame,y: pd.Series, model_type: str = "nn"):
     """
     Train a meta-model on the extracted meta-features and best selected algorithm.
     """
+    """
+    # Encode target algorithms
+    label_encoder = LabelEncoder()
+    y_encoded = label_encoder.fit_transform(y)
     
+    print(f"Training meta-model with {X.shape[0]} datasets and {X.shape[1]} meta-features")
+    print(f"Unique algorithms: {list(label_encoder.classes_)}")
+    
+    # Split data if we have enough samples
+    if len(X) > 1000:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X.values, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
+        )
+    else:
+        X_train, X_test, y_train, y_test = X.values, X.values, y_encoded, y_encoded
+        print("Warning: Using all data for both training and testing due to small sample size")
+    
+    # Convert to PyTorch tensors
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    
+    X_train_tensor = torch.FloatTensor(X_train).to(device)
+    y_train_tensor = torch.LongTensor(y_train).to(device)
+    X_test_tensor = torch.FloatTensor(X_test).to(device)
+    y_test_tensor = torch.LongTensor(y_test).to(device)
+    
+    # Create data loaders
+    train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    
+    # Define model directly
+    input_size = X_train.shape[1]
+    num_classes = len(label_encoder.classes_)
+    hidden_sizes = [128, 64, 32]
+    
+    layers = []
+    prev_size = input_size
+    
+    for hidden_size in hidden_sizes:
+        layers.extend([
+            nn.Linear(prev_size, hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.3)
+        ])
+        prev_size = hidden_size
+    
+    layers.append(nn.Linear(prev_size, num_classes))
+    model = nn.Sequential(*layers).to(device)
+    
+    # Loss and optimizer
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=20, factor=0.5)
+    
+    # Training loop
+    model.train()
+    best_loss = float('inf')
+    patience_counter = 0
+    max_patience = 50
+    
+    for epoch in range(500):
+        total_loss = 0
+        for batch_X, batch_y in train_loader:
+            optimizer.zero_grad()
+            outputs = model(batch_X)
+            loss = criterion(outputs, batch_y)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+        
+        avg_loss = total_loss / len(train_loader)
+        scheduler.step(avg_loss)
+        
+        # Early stopping
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            
+        if patience_counter >= max_patience:
+            print(f"Early stopping at epoch {epoch}")
+            break
+        
+        if epoch % 50 == 0:
+            print(f"Epoch {epoch}, Loss: {avg_loss:.4f}")
+    
+    # Evaluation
+    model.eval()
+    with torch.no_grad():
+        test_outputs = model(X_test_tensor)
+        _, predicted = torch.max(test_outputs.data, 1)
+        
+        y_test_cpu = y_test_tensor.cpu().numpy()
+        predicted_cpu = predicted.cpu().numpy()
+        
+        accuracy = accuracy_score(y_test_cpu, predicted_cpu)
+        
+        print(f"Meta-model accuracy: {accuracy:.4f}")
+        print("\nClassification Report:")
+        print(classification_report(y_test_cpu, predicted_cpu, target_names=label_encoder.classes_))
+    
+    # Save model and metadata
+    model_package = {
+        'model_state_dict': model.state_dict(),
+        'input_size': input_size,
+        'num_classes': num_classes,
+        'hidden_sizes': hidden_sizes,
+        'label_encoder': label_encoder,
+        'feature_names': list(X.columns),
+        'accuracy': accuracy,
+        'model_type': model_type
+    }
+    
+    torch.save(model_package, save_path)
+    print(f"Meta-model saved to {save_path}")
+    
+    return model_package
+    """
       
+       
 def load_openml_dataset(
-        MajorityClassSize: tuple[int, int],
-        MaxNominalAttDistinctValues: tuple[int, int], 
-        MinorityClassSize: tuple[int, int],            
-        NumberOfClasses: tuple[int, int], 
         NumberOfFeatures: tuple[int, int], 
         NumberOfInstances: tuple[int, int],
         NumberOfInstancesWithMissingValues: tuple[int, int],  
         NumberOfNumericFeatures: tuple[int, int], 
         NumberOfSymbolicFeatures: tuple[int, int],
-        max_datasets: int = 10):
-    
-        datasets = openml.datasets.list_datasets(output_format='dataframe')
-        filtered = datasets[
-                (datasets['MajorityClassSize'] <= MajorityClassSize[1]) &
-                (datasets['MajorityClassSize'] >= MajorityClassSize[0]) &
-                (datasets['MaxNominalAttDistinctValues'] <= MaxNominalAttDistinctValues[1]) &
-                (datasets['MaxNominalAttDistinctValues'] >= MaxNominalAttDistinctValues[0]) &
-                (datasets['MinorityClassSize'] <= MinorityClassSize[1]) &
-                (datasets['MinorityClassSize'] >= MinorityClassSize[0]) &
-                (datasets['NumberOfClasses'] <= NumberOfClasses[1]) &
-                (datasets['NumberOfClasses'] >= NumberOfClasses[0]) &
-                (datasets['NumberOfFeatures'] <= NumberOfFeatures[1]) &
-                (datasets['NumberOfFeatures'] >= NumberOfFeatures[0]) &
-                (datasets['NumberOfInstances'] <= NumberOfInstances[1]) &
-                (datasets['NumberOfInstances'] >= NumberOfInstances[0]) &
-                (datasets['NumberOfInstancesWithMissingValues'] <= NumberOfInstancesWithMissingValues[1]) &
-                (datasets['NumberOfInstancesWithMissingValues'] >= NumberOfInstancesWithMissingValues[0]) &
-                (datasets['NumberOfNumericFeatures'] <= NumberOfNumericFeatures[1]) &
-                (datasets['NumberOfNumericFeatures'] >= NumberOfNumericFeatures[0]) &
-                (datasets['NumberOfSymbolicFeatures'] <= NumberOfSymbolicFeatures[1]) &
-                (datasets['NumberOfSymbolicFeatures'] >= NumberOfSymbolicFeatures[0])
-            ]
-        
-        loaded_datasets = []
-        filtered_ids = filtered['did'].tolist()[:max_datasets]
-        
-        for did in filtered_ids:
-            dataset = openml.datasets.get_dataset(did)
-            X, y, categorical_indicator, attribute_names = dataset.get_data(
-                dataset_format="dataframe", target=dataset.default_target_attribute
-            )
-            preprocessor = build_preprocessor(pd.concat([X, y], ignore_index=True)) # type: ignore
-            X_processed = preprocessor.fit_transform(X)
-            loaded_datasets.append((X_processed, categorical_indicator, attribute_names))        
+        max_datasets: int = 10) -> list:
+    """Load datasets from OpenML based on specified criteria.
+    Returns a list of loaded datasets.
+    """
+    datasets = openml.datasets.list_datasets(output_format='dataframe')
+    datasets = datasets[(datasets['NumberOfClasses'] == 0)]
 
-        return loaded_datasets
+    filtered = datasets[
+        (datasets['NumberOfFeatures'] <= NumberOfFeatures[1]) &
+        (datasets['NumberOfFeatures'] >= NumberOfFeatures[0]) &
+        (datasets['NumberOfInstances'] <= NumberOfInstances[1]) &
+        (datasets['NumberOfInstances'] >= NumberOfInstances[0]) &
+        (datasets['NumberOfInstancesWithMissingValues'] <= NumberOfInstancesWithMissingValues[1]) &
+        (datasets['NumberOfInstancesWithMissingValues'] >= NumberOfInstancesWithMissingValues[0]) &
+        (datasets['NumberOfNumericFeatures'] <= NumberOfNumericFeatures[1]) &
+        (datasets['NumberOfNumericFeatures'] >= NumberOfNumericFeatures[0]) &
+        (datasets['NumberOfSymbolicFeatures'] <= NumberOfSymbolicFeatures[1]) &
+        (datasets['NumberOfSymbolicFeatures'] >= NumberOfSymbolicFeatures[0])]
+
+    loaded_datasets = []
+    filtered_ids = filtered['did'].tolist()[:max_datasets]
+
+    for did in filtered_ids:
+        dataset = openml.datasets.get_dataset(did)
+        X, y, categorical_indicator, attribute_names = dataset.get_data(
+            dataset_format="dataframe", target=dataset.default_target_attribute
+        )
+        loaded_datasets.append({
+            "X": X,
+            "y": y,
+            "categorical_indicator": categorical_indicator,
+            "attribute_names": attribute_names,
+            "dataset_id": did
+            })
+
+    print(f"Loaded {len(loaded_datasets)} datasets from OpenML")
+    print("Dataset IDs:", filtered_ids)
+
+    return loaded_datasets
     
-    
+       
 def algorithms_evaluation(algorithms: list, datasets: list):
     """
-    Input: a list of algorithms, list of datasets, and fold number.
-    Output: saves meta-dataset to CSV.
+    Evaluate a list of algorithms on a list of datasets (from load_openml_dataset).
+    Returns a list of records with meta-features and algorithm performances.
     """
+    from sklearn.model_selection import train_test_split
+
     records = []
 
-    for ds in datasets:
-        print(f"→ Processing dataset: {ds}")
-        X_train, y_train, X_test, y_test = load_dataset(ds)
+    for i, ds in enumerate(datasets):
+        print(f"→ Processing dataset {i+1}/{len(datasets)}")
+        X, y = ds["X"], ds["y"]
+        print(f"   • Dataset shape: {X.shape}, target shape: {y.shape}")
 
+        # Check if target is numeric
+        if not pd.api.types.is_numeric_dtype(y):
+            print("   • Target is not numeric, skipping dataset")
+            continue
+        
+        # Split into train/test
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.3, random_state=42
+        )
+
+        # Build preprocessor on all data (to avoid leakage, you can fit only on train)
         preprocessor = build_preprocessor(pd.concat([X_train, X_test], ignore_index=True))
 
         # 1) extract meta-features
@@ -351,83 +487,34 @@ def algorithms_evaluation(algorithms: list, datasets: list):
 
         # 4) assemble record
         record = {
-            "dataset": ds,
+            "dataset_index": i,
+            "dataset_id": ds["dataset_id"],
             **meta,
             "Algorithm": algo,
             **{f"{n}_r2": scores[n] for n in scores},
         }
         records.append(record)
-        
-    return records
 
-    # # 5) save to CSV
-    # df = pd.DataFrame(records)
-    # df.to_csv("meta_dataset.csv", index=False)
-    # print("\nSaved meta-dataset to meta_dataset.csv")
+    # 5) save to CSV
+    df = pd.DataFrame(records)
+    df.to_csv("meta_records.csv", index=False)
+    print("\nSaved meta-dataset to meta_records.csv")
     
-
+    return records
+    
 
 def main():
     
-    load_openml_dataset
-    algorithms_evaluation(algorithms=algorithms, datasets=datasets)
-    
-    # records = []
+    openml_datasets = load_openml_dataset(
+        NumberOfFeatures=(1, 10000),
+        NumberOfInstances=(1, 10000),
+        NumberOfInstancesWithMissingValues=(0, 10000),
+        NumberOfNumericFeatures=(1, 10000),
+        NumberOfSymbolicFeatures=(1, 10000),
+        max_datasets=2
+    )
 
-    # for i in range(1, 11):
-    #     print(f"→ Processing fold: {i}")
-    #     for ds in datasets:
-    #         print(f"→ Processing dataset: {ds}")
-    #         X_train, y_train, X_test, y_test = load_dataset(ds, fold=i)
-
-    #         preprocessor = build_preprocessor(pd.concat([X_train, X_test], ignore_index=True))
-
-    #         # 1) extract meta-features
-    #         meta = extract_meta_features(X_train, y_train)
-
-    #         # 2) evaluate each algorithm
-    #         scores = {}
-    #         for Algo in algorithms:
-    #             name = Algo.__class__.__name__
-    #             print(f"   • Training {name}...", end=" ", flush=True)
-    #             try:
-    #                 # model = Algo()
-    #                 model = Pipeline([
-    #                             ("preproc", preprocessor),
-    #                             ("model", Algo)
-    #                         ])
-    #                 model.fit(X_train, y_train)
-    #                 preds = model.predict(X_test)
-    #                 r2 = r2_score(y_test, preds)
-    #             except Exception as e:
-    #                 print(f"[Error: {e}]")
-    #                 # fallback to dummy
-    #                 dummy = DummyRegressor()
-    #                 dummy.fit(X_train, y_train)
-    #                 r2 = r2_score(y_test, dummy.predict(X_test))
-
-    #             scores[name] = float(r2)
-    #             print(f"R²={r2:.4f}")
-
-    #         # 3) compute ranks (1 = best)
-    #         sorted_names = sorted(scores, key=lambda k: -scores[k])
-    #         algo = sorted_names[0]
-    #         # ranks = {name: rank + 1 for rank, name in enumerate(sorted_names)}
-
-    #         # 4) assemble record
-    #         record = {
-    #             # "dataset": ds,
-    #             **meta,
-    #             # **{ f"{n}_r2": scores[n] for n in scores },
-    #             "Algorithm": algo,
-    #             # **{ f"{n}_rank": ranks[n] for n in ranks },
-    #         }
-    #         records.append(record)
-
-    # # 5) save to CSV
-    # df = pd.DataFrame(records)
-    # df.to_csv("meta_dataset.csv", index=False)
-    # print("\nSaved meta-dataset to meta_dataset.csv")
+    records = algorithms_evaluation(algorithms=algorithms, datasets=openml_datasets)
 
 
 if __name__ == "__main__":
