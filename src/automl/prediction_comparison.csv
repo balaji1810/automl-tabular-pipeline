@@ -1,0 +1,11 @@
+dataset_index,predicted_best,actual_best,correct_prediction
+0,LinearRegression,SVR,False
+1,GradientBoostingRegressor,RandomForestRegressor,False
+2,BayesianRidge,LGBMRegressor,False
+3,GradientBoostingRegressor,XGBRegressor,False
+4,RandomForestRegressor,LGBMRegressor,False
+5,RandomForestRegressor,SVR,False
+6,RandomForestRegressor,LinearRegression,False
+7,BayesianRidge,LinearRegression,False
+8,LinearRegression,GradientBoostingRegressor,False
+9,RandomForestRegressor,BayesianRidge,False

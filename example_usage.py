@@ -303,3 +303,14 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+"""
+# Load the model
+from meta_trainer import load_ranking_meta_model, extract_meta_features, predict_algorithm_rankings
+models, checkpoint = load_ranking_meta_model("meta_model.pth")
+
+meta_df = extract_meta_features(X,y)
+
+predictions = predict_algorithm_rankings(models, checkpoint,meta_features)
+"""

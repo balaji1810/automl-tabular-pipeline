@@ -1,0 +1,11 @@
+,BayesianRidge_predicted_rank,LinearRegression_predicted_rank,SVR_predicted_rank,RandomForestRegressor_predicted_rank,GradientBoostingRegressor_predicted_rank,LGBMRegressor_predicted_rank,HistGradientBoostingRegressor_predicted_rank,XGBRegressor_predicted_rank,DecisionTreeRegressor_predicted_rank,MLPRegressor_predicted_rank,recommended_algorithm,BayesianRidge_actual_rank,LinearRegression_actual_rank,SVR_actual_rank,RandomForestRegressor_actual_rank,GradientBoostingRegressor_actual_rank,LGBMRegressor_actual_rank,HistGradientBoostingRegressor_actual_rank,XGBRegressor_actual_rank,DecisionTreeRegressor_actual_rank,MLPRegressor_actual_rank,actual_best_algorithm
+13,4.0,1.0,9.0,2.0,8.0,6.0,3.0,7.0,5.0,10.0,LinearRegression,3,7,1,4,2,8,5,6,10,9,SVR
+39,9.0,7.0,8.0,2.0,1.0,6.0,5.0,4.0,3.0,10.0,GradientBoostingRegressor,9,7,10,1,2,5,4,6,3,8,RandomForestRegressor
+30,1.0,2.0,3.0,6.0,7.0,5.0,4.0,9.0,10.0,8.0,BayesianRidge,7,6,10,3,8,1,5,2,4,9,LGBMRegressor
+45,8.0,7.0,9.0,2.0,1.0,5.0,6.0,3.0,4.0,10.0,GradientBoostingRegressor,8,7,10,2,4,5,6,1,3,9,XGBRegressor
+17,6.0,2.0,4.0,1.0,3.0,9.0,5.0,10.0,7.0,8.0,RandomForestRegressor,7,6,10,3,8,1,5,2,4,9,LGBMRegressor
+48,4.0,2.0,3.0,1.0,7.0,5.0,6.0,8.0,10.0,9.0,RandomForestRegressor,3,5,1,8,9,7,6,4,10,2,SVR
+26,9.0,7.0,6.0,1.0,4.0,2.0,3.0,5.0,8.0,10.0,RandomForestRegressor,2,1,3,4,6,7,5,8,9,10,LinearRegression
+25,1.0,2.0,3.0,4.0,7.0,6.0,5.0,9.0,10.0,8.0,BayesianRidge,4,1,8,2,3,5,7,6,10,9,LinearRegression
+32,2.0,1.0,9.0,5.0,7.0,4.0,3.0,6.0,8.0,10.0,LinearRegression,7,8,9,4,1,2,5,3,10,6,GradientBoostingRegressor
+19,6.0,5.0,7.0,1.0,3.0,8.0,9.0,2.0,4.0,10.0,RandomForestRegressor,1,2,3,6,8,4,5,9,7,10,BayesianRidge
