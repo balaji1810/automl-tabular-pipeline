@@ -2,23 +2,24 @@
 """
 from __future__ import annotations
 
-from sklearn.ensemble import RandomForestRegressor
+# from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 import pandas as pd
 import numpy as np
 import logging
+import os
 
-import neps
 from sklearn.pipeline import Pipeline
 import torch
-from xgboost import XGBRegressor
+# from xgboost import XGBRegressor
 from automl.meta_features import extract_meta_features
-from automl.FeatureSelector import FeatureSelector
-from automl.neps import hyperparam_search_neps
-from automl.optuna import hyperparam_search_optuna
+from automl.FeatureSelector_new import FeatureSelector
+# from automl.neps import hyperparam_search_neps
+from automl.optuna_util import hyperparam_search_optuna
 from automl.pre_processor import build_preprocessor
-from constants import algorithms_dict
+from automl.constants import algorithms_dict
+from automl.meta_trainer import load_ranking_meta_model, predict_algorithm_rankings
 
 logger = logging.getLogger(__name__)
 
@@ -28,20 +29,46 @@ class AutoML:
 
     def __init__(
         self,
-        seed: int,
+        seed: int = 10,
+        timeout: int = 60,
         metric: str = "r2",
     ) -> None:
         self.seed = seed
+        self.timeout = timeout
         self.metric = METRICS[metric]
-        self._model: list[Pipeline] = []
-        self.val_preds: np.ndarray | None = None
-        self.val_score: float | None = None
+        self.models: list[Pipeline] = []
+        self.val_preds: dict[str, np.ndarray] = {}
+        self.val_score: dict[str, float] = {}
 
     def fit(
         self,
         X: pd.DataFrame,
         y: pd.Series,
     ) -> AutoML:
+
+        preprocessor = build_preprocessor(X)
+        meta_features = extract_meta_features(X, y)
+        logger.info(f"Extracted meta-features")
+        
+        # if os.path.exists("src/automl/meta_model.pth"):
+        #     _, meta_model = torch.load("src/automl/meta_model.pth")
+        #     print("Meta-model loaded successfully.")
+        # else:
+        #     print("No meta_model.pth found. Initializing empty or default meta-model.")
+        #     meta_model = None  # Or initialize your model class here
+
+        _, meta_model = torch.load("src/automl/meta_model.pth")
+        
+        meta_model, checkpoint = load_ranking_meta_model("src/automl/meta_model.pth")
+        meta_model_predictions = predict_algorithm_rankings(meta_model, checkpoint, meta_features)
+
+        # meta_model = torch.load("meta_model.pth")
+        # meta_model_predictions = meta_model.predict(meta_features)
+        # meta_model_predictions = ["SVR", "DecisionTreeRegressor", "HistGradientBoostingRegressor", "LinearRegression", "BayesianRidge", "GradientBoostingRegressor", "MLPRegressor"]  # Placeholder for actual predictions
+        # meta_model_predictions = ["LGBMRegressor", "XGBRegressor"]  # Placeholder for actual predictions
+
+
+        # logger.info(f"Meta-model predictions: {meta_model_predictions}")
 
         X_train, X_val, y_train, y_val = train_test_split(
             X,
@@ -50,16 +77,15 @@ class AutoML:
             test_size=0.2,
             # stratify=y if y.nunique() < 10 else None
         )
-        preprocessor = build_preprocessor(X)
-        meta_features = extract_meta_features(X, y)
-        logger.info(f"Extracted meta-features")
-        meta_model = torch.load("meta_model.pth")
-        meta_model_predictions = meta_model.predict(meta_features)
-
-        logger.info(f"Meta-model predictions: {meta_model_predictions}")
+        
+        eval_time = int(self.timeout / len(meta_model_predictions))
 
         for model_name in meta_model_predictions:
             model = algorithms_dict[model_name]
+            if model_name == "LinearRegression" or model_name == "BayesianRidge" or model_name == "SVR":
+                pass
+            else :
+                model.set_params(random_state=self.seed)
             logger.info(f"Selected model: {model_name}")
 
             model_pipeline = Pipeline([
@@ -68,23 +94,25 @@ class AutoML:
                 ("model", model)
             ])
 
-            model_pipeline = hyperparam_search_optuna(model_pipeline, X_train, y_train, X_val, y_val, model_name)
+            model_pipeline = hyperparam_search_optuna(model_pipeline, X_train, y_train, X_val, y_val, model_name, eval_time)
 
             model = model_pipeline.fit(X_train, y_train)
-            self._model.append(model)
-            self.val_preds(model.predict(X_val))
-            self.val_score = self.metric(y_val, self.val_preds)
-            logger.info(f"Validation score for {model_name}: {val_score}")
+            self.models.append(model)
+            self.val_preds[model_name] = model.predict(X_val)
+            self.val_score[model_name] = self.metric(y_val, self.val_preds[model_name])
+            logger.info(f"Validation score for {model_name}: {self.val_score[model_name]}")
+        logger.info("All models fitted")
 
-        val_preds = [model.predict(X_val) for model in self._model]
-        val_score = self.metric(y_val, val_preds)
-        logger.info(f"Validation score: {val_score}")
+        self.best_model_name = max(self.val_score, key=self.val_score.get)
+        self.best_model = next(model for model in self.models if model.named_steps['model'].__class__.__name__ == self.best_model_name)
+        logger.info(f"Best model found: {self.best_model_name} with score: {self.val_score[self.best_model_name]}")
 
         return self
 
 
     def predict(self, X: pd.DataFrame) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
-        if self._model is None:
-            raise ValueError("Model not fitted")
-
-        return self._model.predict(X)
+        """Predict using the best model."""
+        if not self.models:
+            raise ValueError("Model has not been fitted yet. Call fit() before predict().")
+        predictions = self.best_model.predict(X)
+        return predictions

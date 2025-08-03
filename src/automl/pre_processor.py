@@ -26,7 +26,7 @@ def detect_column_types(X: pd.DataFrame) -> tuple[list[str], list[str]]:
 
 
 def build_preprocessor(
-    X: pd.DataFrame,
+    X: pd.DataFrame
 ) -> ColumnTransformer:
     """
     Build a ColumnTransformer for preprocessing:
@@ -45,7 +45,7 @@ def build_preprocessor(
     if cat_cols:
         cat_steps = []
         cat_steps.append(("imputer", SimpleImputer(strategy="most_frequent")))
-        cat_steps.append(("onehot", OrdinalEncoder()))
+        cat_steps.append(("onehot", OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)))
         transformers.append(("categorical", Pipeline(steps=cat_steps), cat_cols))
 
     preprocessor = ColumnTransformer(transformers=transformers, remainder="drop", sparse_threshold=0)

@@ -17,7 +17,6 @@ except ImportError:
 warnings.filterwarnings("ignore", message="Bins whose width are too small*", category=UserWarning)
 
 class FeatureSelector:
-    #TODO add params [bool] for alg specific feature engineering:
     def __init__(self, max_features: float = 0.75, select_method: Literal["permutation", "tree"] = "permutation", 
                  add_polynomial_features_xgb: bool = False,   
                  add_binning_features_xgb: bool = False, 
@@ -261,6 +260,7 @@ class FeatureSelector:
                 X_engineered = self._add_binning_features_xgb(X_engineered)
             if self.add_statistical_features_xgb:
                 X_engineered = self._add_statistical_features_xgb(X_engineered)
+                
         elif self.algorithm == "lightgbm":
             # LightGBM-specific features
             if self.add_quantile_binning_lgb:

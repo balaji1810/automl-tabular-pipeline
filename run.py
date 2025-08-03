@@ -19,7 +19,7 @@ current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir / "src"))
 
 from automl.data import Dataset
-from automl.automl import AutoML
+from automl.automl_new import AutoML
 import argparse
 
 import logging
@@ -36,30 +36,14 @@ def main(
     output_path: Path,
     seed: int,
     datadir: Path,
-    use_enhanced: bool = True,
-    correlation_threshold: float = 0.7,
-    n_trials: int = 100,
+    timeout: int
 ):
     dataset = Dataset.load(datadir=datadir, task=task, fold=fold)
 
     logger.info("Fitting AutoML")
 
-    # You do not need to follow this setup or API it's merely here to provide
-    # an example of how your automl system could be used.
-    # As a general rule of thumb, you should **never** pass in any
-    # test data to your AutoML solution other than to generate predictions.
-    
-    if use_enhanced:
-        logger.info("Using Enhanced AutoML with multiple(currently two) algorithms")
-        automl = AutoML(
-            seed=seed, 
-            correlation_threshold=correlation_threshold,
-            n_trials=n_trials,
-            use_mult_algorithms=True
-        )
-    else:
-        logger.info("Using basic pipeline")
-        automl = AutoML(seed=seed, use_mult_algorithms=False)
+
+    automl = AutoML(seed=seed, timeout=timeout)
         
     automl.fit(dataset.X_train, dataset.y_train)
     test_preds: np.ndarray | tuple[np.ndarray, np.ndarray] = automl.predict(dataset.X_test)
@@ -74,19 +58,6 @@ def main(
     if dataset.y_test is not None:
         r2_test = r2_score(dataset.y_test, test_preds)
         logger.info(f"R^2 on test set: {r2_test}")
-        
-        # Log additional info for enhanced AutoML
-        if use_enhanced and hasattr(automl, 'use_mult_algorithms') and automl.use_mult_algorithms:
-            if hasattr(automl, '_xgb_model') and hasattr(automl, '_lgbm_model'):
-                xgb_preds = automl._xgb_model.predict(dataset.X_test)
-                lgbm_preds = automl._lgbm_model.predict(dataset.X_test)
-                xgb_r2 = r2_score(dataset.y_test, xgb_preds)
-                lgbm_r2 = r2_score(dataset.y_test, lgbm_preds)
-                logger.info(f"Individual test scores - XGBoost: {xgb_r2:.4f}, LightGBM: {lgbm_r2:.4f}")
-                if automl.use_ensemble:
-                    logger.info(f"Ensemble weights: XGB={automl.ensemble_weights[0]:.3f}, LGBM={automl.ensemble_weights[1]:.3f}")
-                else:
-                    logger.info(f"Used best single model: {automl.best_single_algorithm}")
     else:
         # This is the setting for the exam dataset, you will not have access to y_test
         logger.info(f"No test set for task '{task}'")
@@ -131,6 +102,16 @@ if __name__ == "__main__":
             " i.e. torch, numpy, pandas, sklearn, etc."
         )
     )
+    
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=60,
+        help=(
+            "Set optimization timeout"
+            " i.e. 60 = 60 seconds"
+        )
+    )
 
     parser.add_argument(
         "--datadir",
@@ -140,29 +121,6 @@ if __name__ == "__main__":
             "The directory where the datasets are stored."
             " You should be able to mostly leave this as the default."
         )
-    )
-    parser.add_argument(
-        "--enhanced",
-        action="store_true",
-        default=True,
-        help="Use enhanced AutoML with dual algorithms (default: True)"
-    )
-    parser.add_argument(
-        "--basic",
-        action="store_true",
-        help="Use basic AutoML instead of enhanced (overrides --enhanced)"
-    )
-    parser.add_argument(
-        "--correlation-threshold",
-        type=float,
-        default=0.7,
-        help="Correlation threshold for ensemble (default: 0.7)"
-    )
-    parser.add_argument(
-        "--n-trials",
-        type=int,
-        default=100,
-        help="Number of optimization trials per algorithm (default: 100)"
     )
     parser.add_argument(
         "--quiet",
@@ -188,7 +146,5 @@ if __name__ == "__main__":
         output_path=args.output_path,
         datadir=args.datadir,
         seed=args.seed,
-        use_enhanced=not args.basic,  # Use enhanced unless --basic is specified
-        correlation_threshold=args.correlation_threshold,
-        n_trials=args.n_trials,
+        timeout=args.timeout
     )

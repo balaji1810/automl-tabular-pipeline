@@ -14,8 +14,8 @@ from sklearn.pipeline import Pipeline
 from xgboost import XGBRegressor
 from lightgbm import LGBMRegressor
 from automl.FeatureSelector import FeatureSelector
-from automl.neps import hyperparam_search_neps
-from automl.optuna import hyperparam_search_optuna
+# from automl.neps import hyperparam_search_neps
+from automl.optuna_util import hyperparam_search_optuna
 from automl.pre_processor import build_preprocessor
 
 logger = logging.getLogger(__name__)
