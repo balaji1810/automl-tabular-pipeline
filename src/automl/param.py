@@ -1,4 +1,21 @@
 import optuna
+import warnings
+import os
+
+# Suppress LightGBM warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="lightgbm")
+warnings.filterwarnings("ignore", message=".*LightGBM.*")
+warnings.filterwarnings("ignore", message=".*No further splits.*")
+warnings.filterwarnings("ignore", message=".*Stopped training.*")
+os.environ['LIGHTGBM_VERBOSITY'] = '-1'  # Suppress LightGBM verbose output
+
+# Suppress other common ML warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+
+# Additional LightGBM suppression
+import logging
+logging.getLogger("lightgbm").setLevel(logging.ERROR)
 
 def XGBRegressorParams(trial) -> dict:
     """

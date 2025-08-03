@@ -19,7 +19,7 @@ current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir / "src"))
 
 from automl.data import Dataset
-from automl.automl_new import AutoML
+from automl.automl import AutoML
 import argparse
 
 import logging

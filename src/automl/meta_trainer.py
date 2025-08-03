@@ -434,7 +434,8 @@ def predict_algorithm_rankings(model, checkpoint, meta_features_df, actual_ranki
     feature_names = checkpoint['preprocessing']['feature_names']
     
     # Ensure features are in correct order and handle missing values
-    X = meta_features_df[feature_names].fillna(pd.Series(scaler_mean, index=feature_names))
+    X = meta_features_df[feature_names]
+    # .fillna(pd.Series(scaler_mean, index=feature_names))
     X_scaled = (X.values - scaler_mean) / scaler_scale
     
     # Predict rankings
@@ -480,7 +481,7 @@ def predict_algorithm_rankings(model, checkpoint, meta_features_df, actual_ranki
                 predictions_df[f"{algo_name}_actual_rank"] = actual_rankings_aligned[actual_col].astype(int)
             
             # Add predicted rank column (right next to actual) - convert to integers
-            predictions_df[f"{algo_name}_predicted_rank"] = predicted_ranks[:, i].astype(int)
+            predictions_df[f"{algo_name}"] = predicted_ranks[:, i].astype(int)
         
         # Add actual best algorithm
         actual_best_algorithms = []
@@ -502,7 +503,7 @@ def predict_algorithm_rankings(model, checkpoint, meta_features_df, actual_ranki
     else:
         # If no actual rankings, just add predicted ranks - convert to integers
         for i, algo_name in enumerate(algorithm_names):
-            predictions_df[f"{algo_name}_predicted_rank"] = predicted_ranks[:, i].astype(int)
+            predictions_df[f"{algo_name}"] = predicted_ranks[:, i].astype(int)
         predictions_df['recommended_algorithm'] = best_algorithms
 
     # Save to CSV with enhanced information
