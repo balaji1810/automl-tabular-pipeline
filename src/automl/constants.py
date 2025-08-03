@@ -5,6 +5,7 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, H
 from sklearn.svm import SVR
 from sklearn.linear_model import LinearRegression, BayesianRidge
 from sklearn.tree import DecisionTreeRegressor
+from tabpfn import TabPFNRegressor
 
 
 algorithms = [
@@ -18,7 +19,7 @@ algorithms = [
     BayesianRidge(),
     LinearRegression(),
     SVR(),
-    # TabPFNRegressor(n_jobs=-1, ignore_pretraining_limits=True),
+    TabPFNRegressor(n_jobs=-1, device="auto")
     # device="cuda" if torch.cuda.is_available() else "cpu",
 ]
 

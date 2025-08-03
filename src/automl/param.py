@@ -252,6 +252,25 @@ def SVRParam(trial):
 
     return param
 
+def TabPFNParams(trial):
+    """
+    Generate hyperparameters for TabPFN using Optuna trial.
+    
+    Args:
+        trial: Optuna trial object.
+        
+    Returns:
+        dict: Hyperparameters for TabPFN.
+    """
+    param = {
+        "model__n_estimators": trial.suggest_int("model__n_estimators", 5, 12),
+        "model__softmax_temperature": trial.suggest_int("model__softmax_temperature", 0.7, 1.0),
+        "model__average_before_softmax": trial.suggest_categorical("model__average_before_softmax", [True, False]),
+        "model__differentiable_input": trial.suggest_categorical("model__differentiable_input", [True, False]),
+        "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),
+    }
+    return param
+
 def fetch_params(trial: optuna.Trial, model_name: str) -> dict:
     """
     Get hyperparameters for a given model using Optuna trial.
@@ -273,7 +292,8 @@ def fetch_params(trial: optuna.Trial, model_name: str) -> dict:
         "LinearRegression": LinearRegressionParams,
         "BayesianRidge": BayesianRidgeParams,
         "DecisionTreeRegressor": DecisionTreeRegressorParams,
-        "SVR": SVRParam
+        "SVR": SVRParam,
+        "TabPFN": TabPFNParams
     }
 
     if model_name not in model_params_map:
