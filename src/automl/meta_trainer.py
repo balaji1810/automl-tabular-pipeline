@@ -19,6 +19,22 @@ import joblib
 import argparse
 import warnings
 import logging
+import os
+
+# Suppress LightGBM warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="lightgbm")
+warnings.filterwarnings("ignore", message=".*LightGBM.*")
+warnings.filterwarnings("ignore", message=".*No further splits.*")
+warnings.filterwarnings("ignore", message=".*Stopped training.*")
+os.environ['LIGHTGBM_VERBOSITY'] = '-1'  # Suppress LightGBM verbose output
+
+# Suppress other common ML warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+
+# Additional LightGBM suppression
+import logging
+logging.getLogger("lightgbm").setLevel(logging.ERROR)
 
 
 predict_split_flag = False  # Flag to control whether to split predictions or not
@@ -43,24 +59,24 @@ class MultiHeadRankingNetwork(nn.Module):
         
         # Shared Feature Extractor
         self.shared_layers = nn.Sequential(
-            nn.Linear(input_size, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            
-            nn.Linear(128, 64),
+            nn.Linear(input_size, 64), # TODO: changed from 128 to 64
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Dropout(dropout),
             
-            nn.Linear(64, 32),
-            nn.BatchNorm1d(32),
-            nn.ReLU()
+            nn.Linear(64, 24), # TODO: changed from 64 to 24
+            nn.BatchNorm1d(24),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            
+            # nn.Linear(64, 32), # TODO: commenting out to reduce complexity
+            # nn.BatchNorm1d(32),
+            # nn.ReLU()
         )
         
         # Algorithm-Specific Heads (one per algorithm)
         self.algorithm_heads = nn.ModuleList([
-            nn.Linear(32, 1) for _ in range(num_algorithms)
+            nn.Linear(24, 1) for _ in range(num_algorithms) # TODO: Reduced from 32->1 to 24->1
         ])
         
         # Initialize weights
@@ -204,7 +220,8 @@ def train_meta_model(dataset_df: pd.DataFrame,
     
     # Create data loaders
     train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-    train_loader = DataLoader(train_dataset, batch_size=min(32, len(X_train)//2 + 1), shuffle=True)
+    # train_loader = DataLoader(train_dataset, batch_size=min(32, len(X_train)//2 + 1), shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)  # TODO: changed from 32 to 64 for better convergence
     
     # Initialize model
     input_size = X_train.shape[1]
@@ -214,14 +231,14 @@ def train_meta_model(dataset_df: pd.DataFrame,
     model = MultiHeadRankingNetwork(input_size, num_algorithms).to(device)
     
     # Optimizer and scheduler
-    optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.01)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=20, factor=0.5)
+    optimizer = optim.AdamW(model.parameters(), lr=0.005, weight_decay=0.15) # TODO: changed weight_decay from 0.01 to 0.15 and learning rate from 0.001 to 0.005
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=15, factor=0.7) # TODO: changed patience from 20 to 15 and factor from 0.5 to 0.7
     
     # Training loop
     model.train()
     best_loss = float('inf')
     patience_counter = 0
-    max_patience = 100
+    max_patience = 50 # TODO: changed this from 100 to 50 for stronger early stopping
     train_losses = []
     
     print("Starting training...")
@@ -433,39 +450,37 @@ def predict_algorithm_rankings(model, checkpoint, meta_features_df, actual_ranki
         # Convert scores to ranks
         predicted_ranks = model.scores_to_ranks(raw_scores).cpu().numpy()
     
-    # Convert to DataFrame with algorithm names
-    predictions_df = pd.DataFrame(
-        predicted_ranks, 
-        columns=[f"{name}_predicted_rank" for name in algorithm_names],
-        index=meta_features_df.index
-    )
+    # Create organized DataFrame with actual and predicted ranks side by side
+    predictions_df = pd.DataFrame(index=meta_features_df.index)
     
     # Add algorithm recommendation (best = rank 1)
     best_algorithms = []
-    for i in range(len(predictions_df)):
-        row_predictions = predictions_df.iloc[i]
+    for i in range(len(predicted_ranks)):
+        row_predictions = predicted_ranks[i]
         # Find algorithm with rank 1 (best)
-        best_algo_indices = np.where(row_predictions.values == 1)[0]
+        best_algo_indices = np.where(row_predictions == 1)[0]
         if len(best_algo_indices) > 0:
             best_algo = algorithm_names[best_algo_indices[0]]
         else:
             # If no rank 1 (shouldn't happen), pick the lowest rank
-            best_algo_idx = np.argmin(row_predictions.values.astype(float))
+            best_algo_idx = np.argmin(row_predictions.astype(float))
             best_algo = algorithm_names[best_algo_idx]
         best_algorithms.append(best_algo)
-    
-    predictions_df['recommended_algorithm'] = best_algorithms
 
-    # If actual rankings are provided, add them to the dataframe
+    # If actual rankings are provided, organize them side by side with predictions
     if actual_rankings_df is not None:
         # Ensure indices match
         actual_rankings_aligned = actual_rankings_df.reindex(meta_features_df.index)
         
-        # Add actual rankings with "_actual_rank" suffix
-        for col in actual_rankings_aligned.columns:
-            if col.endswith('_rank'):
-                algo_name = col.replace('_rank', '')
-                predictions_df[f"{algo_name}_actual_rank"] = actual_rankings_aligned[col]
+        # Add columns for each algorithm: actual_rank, predicted_rank (side by side)
+        for i, algo_name in enumerate(algorithm_names):
+            # Add actual rank column
+            actual_col = f"{algo_name}_rank"
+            if actual_col in actual_rankings_aligned.columns:
+                predictions_df[f"{algo_name}_actual_rank"] = actual_rankings_aligned[actual_col].astype(int)
+            
+            # Add predicted rank column (right next to actual) - convert to integers
+            predictions_df[f"{algo_name}_predicted_rank"] = predicted_ranks[:, i].astype(int)
         
         # Add actual best algorithm
         actual_best_algorithms = []
@@ -483,6 +498,12 @@ def predict_algorithm_rankings(model, checkpoint, meta_features_df, actual_ranki
             actual_best_algorithms.append(best_actual_algo)
         
         predictions_df['actual_best_algorithm'] = actual_best_algorithms
+        predictions_df['recommended_algorithm'] = best_algorithms
+    else:
+        # If no actual rankings, just add predicted ranks - convert to integers
+        for i, algo_name in enumerate(algorithm_names):
+            predictions_df[f"{algo_name}_predicted_rank"] = predicted_ranks[:, i].astype(int)
+        predictions_df['recommended_algorithm'] = best_algorithms
 
     # Save to CSV with enhanced information
     predictions_df.to_csv("meta_preds.csv", index=True)
@@ -546,6 +567,7 @@ def load_openml_datasets(
     loaded_datasets = []
     filtered_ids = filtered['did'].tolist()[:max_datasets]
 
+    # filtered_ids = [3967]
     for did in filtered_ids:
         dataset = openml.datasets.get_dataset(did)
         X, y, categorical_indicator, attribute_names = dataset.get_data(
@@ -575,7 +597,8 @@ def algorithms_eval(algorithms: list, datasets: list):
     records = []
 
     for i, ds in enumerate(datasets):
-        print(f"→ Processing dataset {i+1}/{len(datasets)}")
+        dataset_id = ds["dataset_id"]
+        print(f"→ Processing dataset {i+1}/{len(datasets)} (ID: {dataset_id})")
         X, y = ds["X"], ds["y"]
         print(f"   • Dataset shape: {X.shape}, target shape: {y.shape}")
 
@@ -639,7 +662,18 @@ def algorithms_eval(algorithms: list, datasets: list):
     # 5) save to CSV
     df = pd.DataFrame(records)
     df.to_csv("meta_Y.csv", index=False)
-    print("\nSaved meta-dataset to meta_records.csv")
+    
+    # # Save updated failing datasets list
+    # failing_df = pd.DataFrame({'failing_dataset_ids': failing_datasets})
+    # failing_df.to_csv("failing_datasets_list.csv", index=False)
+    
+    # print(f"\nDataset Processing Summary:")
+    # print(f"• Total datasets attempted: {len(datasets)}")
+    # print(f"• Successfully processed: {len(records)}")
+    # print(f"• Failed to process: {len(datasets) - len(records)}")
+    # print(f"• Success rate: {len(records)/len(datasets)*100:.1f}%")
+    # print(f"• Updated failing datasets list saved to: failing_datasets_list.csv")
+    # print(f"• Total failing datasets: {len(failing_datasets)}")
     
     return records
     
@@ -655,12 +689,12 @@ def main():
     
     # Step 1: Generate meta-learning dataset
     openml_datasets = load_openml_datasets(
-            NumberOfFeatures=(1, 1023),
-            NumberOfInstances=(10, 1000),
-            NumberOfInstancesWithMissingValues=(0, 10000),
-            NumberOfNumericFeatures=(1, 10000),
-            NumberOfSymbolicFeatures=(1, 10000),
-            max_datasets=50
+            NumberOfFeatures=(1, 5000),
+            NumberOfInstances=(10, 50000),
+            NumberOfInstancesWithMissingValues=(0, 20000),
+            NumberOfNumericFeatures=(1, 15000),
+            NumberOfSymbolicFeatures=(1, 15000),
+            max_datasets=1000
          )
     records = algorithms_eval(algorithms=algorithms, datasets=openml_datasets)
     
