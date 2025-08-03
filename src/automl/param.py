@@ -7,6 +7,9 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.svm import SVR
 from tabpfn import TabPFNRegressor
 
+from automl.FeatureSelector import FeatureSelector
+
+
 # XGBRegressor
 param = {
     "model__objective": "reg:squarederror",
@@ -21,9 +24,23 @@ param = {
     "featureselector__select_method": trial.suggest_categorical("featureselector__select_method", ["permutation", "tree"]),
     "featureselector__add_polynomial_features_xgb": trial.suggest_categorical("featureselector__add_polynomial_features_xgb", [True, False]),
     "featureselector__add_binning_features_xgb": trial.suggest_categorical("featureselector__add_binning_features_xgb", [True, False]),
-    "featureselector__add_statistical_features_xgb": trial.suggest_categorical("featureselector__add_statistical_features_xgb", [True, False]),
+    "featureselector__add_statistical_features_xgb": trial.suggest_categorical("featureselector__add_statistical_features_xgb", [True, False])
 }
-   
+    
+if param["model__booster"] in ["gbtree", "dart"]:
+    param["model__max_depth"] = trial.suggest_int("model__max_depth", 3, 9, step=2)
+    param["model__min_child_weight"] = trial.suggest_int("model__min_child_weight", 2, 10)
+    param["model__eta"] = trial.suggest_float("model__eta", 1e-8, 1.0, log=True)
+    param["model__gamma"] = trial.suggest_float("model__gamma", 1e-8, 1.0, log=True)
+    param["model__grow_policy"] = trial.suggest_categorical("model__grow_policy", ["depthwise", "lossguide"])
+
+if param["model__booster"] == "dart":
+    param["model__sample_type"] = trial.suggest_categorical("model__sample_type", ["uniform", "weighted"])
+    param["model__normalize_type"] = trial.suggest_categorical("model__normalize_type", ["tree", "forest"])
+    param["model__rate_drop"] = trial.suggest_float("model__rate_drop", 1e-8, 1.0, log=True)
+    param["model__skip_drop"] = trial.suggest_float("model__skip_drop", 1e-8, 1.0, log=True)
+
+
 #lgbm params
 param = {
     "model__objective": "regression",
@@ -35,7 +52,13 @@ param = {
     "model__bagging_fraction": trial.suggest_float("model__bagging_fraction", 0.4, 1.0),
     "model__reg_alpha": trial.suggest_float("model__reg_alpha", 1e-8, 10.0, log=True),
     "model__reg_lambda": trial.suggest_float("model__reg_lambda", 1e-8, 10.0, log=True),
+    
+    
     "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.7, 1.0),
+    "featureselector__select_method": trial.suggest_categorical("featureselector__select_method", ["permutation", "tree"]),
+    "featureselector__add_polynomial_features_lgb": trial.suggest_categorical("featureselector__add_polynomial_features_lgb", [True, False]),
+    "featureselector__add_binning_features_lgb": trial.suggest_categorical("featureselector__add_binning_features_lgb", [True, False]),
+    "featureselector__add_statistical_features_lgb": trial.suggest_categorical("featureselector__add_statistical_features_lgb", [True, False]),
 }
 
 # MLPRegressor params
