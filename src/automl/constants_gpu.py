@@ -41,10 +41,10 @@ def get_gpu_optimized_algorithms():
         LinearRegression(),
         SVR(),
         
-        # TabPFN (can be heavy on CPU, configurable)
+        # TabPFN (GPU-enabled when available)
         TabPFNRegressor(
             n_jobs=4,  # Limit parallelism to avoid CPU overload
-            device="auto"  # Let TabPFN decide
+            device="cuda" if use_gpu else "cpu"  # Explicitly set GPU device
         )
     ]
     

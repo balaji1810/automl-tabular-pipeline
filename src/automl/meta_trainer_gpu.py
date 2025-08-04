@@ -11,7 +11,7 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.dummy import DummyRegressor
 from sklearn.preprocessing import StandardScaler
-from automl.constants import algorithms
+from constants_gpu import algorithms
 import openml
 from scipy.stats import spearmanr
 import joblib
@@ -300,15 +300,16 @@ def train_meta_model(dataset_df: pd.DataFrame,
         torch.set_num_threads(4)  # Optimize for CPU
         batch_size = 32
     
-    # Convert to PyTorch tensors
-    X_train_tensor = torch.FloatTensor(X_train).to(device)
-    y_train_tensor = torch.FloatTensor(y_train).to(device)
+    # Convert to PyTorch tensors - keep on CPU for DataLoader, move to device in training loop
+    X_train_tensor = torch.FloatTensor(X_train)
+    y_train_tensor = torch.FloatTensor(y_train)
     X_test_tensor = torch.FloatTensor(X_test).to(device)
     y_test_tensor = torch.FloatTensor(y_test).to(device)
     
-    # Create data loaders
+    # Create data loaders - only pin memory if using GPU and tensors are on CPU
     train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=(device.type == 'cuda'))
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, 
+                            pin_memory=(device.type == 'cuda'), num_workers=0)
     
     # Initialize model
     input_size = X_train.shape[1]
@@ -342,6 +343,10 @@ def train_meta_model(dataset_df: pd.DataFrame,
             
         total_loss = 0
         for batch_X, batch_y in train_loader:
+            # Move batch to device
+            batch_X = batch_X.to(device)
+            batch_y = batch_y.to(device)
+            
             optimizer.zero_grad()
             
             # Forward pass
@@ -389,8 +394,12 @@ def train_meta_model(dataset_df: pd.DataFrame,
     # Evaluation
     model.eval()
     with torch.no_grad():
+        # Move train tensors to device for evaluation
+        X_train_tensor_eval = X_train_tensor.to(device)
+        y_train_tensor_eval = y_train_tensor.to(device)
+        
         # Get predictions
-        train_scores = model(X_train_tensor)
+        train_scores = model(X_train_tensor_eval)
         test_scores = model(X_test_tensor)
         
         # Convert scores to ranks
@@ -398,20 +407,24 @@ def train_meta_model(dataset_df: pd.DataFrame,
         test_predicted_ranks = model.scores_to_ranks(test_scores).cpu().numpy()
         
         # Calculate metrics
-        train_loss = combined_ranking_loss(train_scores, y_train_tensor).item()
+        train_loss = combined_ranking_loss(train_scores, y_train_tensor_eval).item()
         test_loss = combined_ranking_loss(test_scores, y_test_tensor).item()
         
         # Calculate ranking correlations
         train_correlations = []
         test_correlations = []
         
-        for i in range(len(y_train)):
-            corr, _ = spearmanr(y_train[i], train_predicted_ranks[i])
+        # Use CPU numpy arrays for correlation calculations
+        y_train_np = y_train_tensor_eval.cpu().numpy()
+        y_test_np = y_test_tensor.cpu().numpy()
+        
+        for i in range(len(y_train_np)):
+            corr, _ = spearmanr(y_train_np[i], train_predicted_ranks[i])
             if not np.isnan(corr):
                 train_correlations.append(corr)
         
-        for i in range(len(y_test)):
-            corr, _ = spearmanr(y_test[i], test_predicted_ranks[i])
+        for i in range(len(y_test_np)):
+            corr, _ = spearmanr(y_test_np[i], test_predicted_ranks[i])
             if not np.isnan(corr):
                 test_correlations.append(corr)
         
@@ -422,20 +435,20 @@ def train_meta_model(dataset_df: pd.DataFrame,
         train_top1_correct = 0
         test_top1_correct = 0
         
-        for i in range(len(y_train)):
-            true_best = np.argmin(y_train[i])  # Rank 1 = best
+        for i in range(len(y_train_np)):
+            true_best = np.argmin(y_train_np[i])  # Rank 1 = best
             pred_best = np.argmin(train_predicted_ranks[i])
             if true_best == pred_best:
                 train_top1_correct += 1
         
-        for i in range(len(y_test)):
-            true_best = np.argmin(y_test[i])
+        for i in range(len(y_test_np)):
+            true_best = np.argmin(y_test_np[i])
             pred_best = np.argmin(test_predicted_ranks[i])
             if true_best == pred_best:
                 test_top1_correct += 1
         
-        train_top1_accuracy = train_top1_correct / len(y_train)
-        test_top1_accuracy = test_top1_correct / len(y_test)
+        train_top1_accuracy = train_top1_correct / len(y_train_np)
+        test_top1_accuracy = test_top1_correct / len(y_test_np)
         
         print(f"\nMulti-Head Ranking Network Training Results:")
         print(f"Train Loss: {train_loss:.6f}")
@@ -497,22 +510,18 @@ def load_ranking_meta_model(model_path: str, use_gpu: bool = True):
         device = torch.device("cpu")
         print("💻 Loading model on CPU")
     
-    checkpoint = torch.load(model_path, map_location=device, weights_only=False)
+    # Load the saved tuple (model, model_package)
+    saved_data = torch.load(model_path, map_location=device, weights_only=False)
+    model, checkpoint = saved_data  # Unpack the tuple
     
-    # Rebuild model architecture
-    arch = checkpoint['model_architecture']
-    model = MultiHeadRankingNetwork(
-        arch['input_size'], 
-        arch['num_algorithms']
-    ).to(device)
-    
-    model.load_state_dict(checkpoint['model_state_dict'])
+    # Move model to device
+    model = model.to(device)
     model.eval()
     
     print(f"Loaded Multi-Head Ranking Network:")
     print(f"  Model type: {checkpoint['metadata']['model_type']}")
-    print(f"  Input size: {arch['input_size']}")
-    print(f"  Number of algorithms: {arch['num_algorithms']}")
+    print(f"  Input size: {checkpoint['model_architecture']['input_size']}")
+    print(f"  Number of algorithms: {checkpoint['model_architecture']['num_algorithms']}")
     print(f"  Number of features: {checkpoint['metadata']['num_features']}")
     print(f"  Test Spearman correlation: {checkpoint['training_info']['test_spearman_corr']:.4f}")
     print(f"  Test Top-1 accuracy: {checkpoint['training_info']['test_top1_accuracy']:.4f}")
@@ -734,7 +743,11 @@ def algorithms_eval(algorithms: list, datasets: list, use_gpu: bool = True, skip
         # Configure for GPU if available and requested
         if use_gpu and torch.cuda.is_available():
             if hasattr(algo_copy, 'device'):
-                algo_copy.device = 'gpu'
+                # TabPFN and other PyTorch models expect 'cuda' not 'gpu'
+                if 'TabPFN' in algo_copy.__class__.__name__:
+                    algo_copy.device = 'cuda'
+                else:
+                    algo_copy.device = 'gpu'
                 print(f"🚀 Configured {algo_copy.__class__.__name__} for GPU")
             elif hasattr(algo_copy, 'tree_method'):  # XGBoost
                 algo_copy.tree_method = 'gpu_hist'
@@ -872,21 +885,30 @@ def main():
     print("LOADING DATASETS")
     print("="*50)
     
-    openml_datasets = load_openml_datasets(
-            NumberOfFeatures=(10, 5000),
-            NumberOfInstances=(10, 50000),
-            NumberOfInstancesWithMissingValues=(0, 20000),
-            NumberOfNumericFeatures=(1, 15000),
-            NumberOfSymbolicFeatures=(1, 15000),
-            max_datasets=50
-         )
+    # openml_datasets = load_openml_datasets(
+    #         NumberOfFeatures=(10, 5000),
+    #         NumberOfInstances=(10, 50000),
+    #         NumberOfInstancesWithMissingValues=(0, 20000),
+    #         NumberOfNumericFeatures=(1, 15000),
+    #         NumberOfSymbolicFeatures=(1, 15000),
+    #         max_datasets=20
+    #      )
     
-    print("\n" + "="*50)
-    print("EVALUATING ALGORITHMS")
-    print("="*50)
+    # print("\n" + "="*50)
+    # print("EVALUATING ALGORITHMS")
+    # print("="*50)
     
-    records = algorithms_eval(algorithms=algorithms, datasets=openml_datasets, 
-                             use_gpu=use_gpu, skip_tabpfn=skip_tabpfn)
+    # records = algorithms_eval(algorithms=algorithms, datasets=openml_datasets, 
+    #                          use_gpu=use_gpu, skip_tabpfn=skip_tabpfn)
+
+    # get records from meta_features.csv
+    
+    try:
+        records = pd.read_csv("meta_features.csv").to_dict(orient='records')
+        records = pd.DataFrame(records)
+        print(f"Loaded {len(records)} records from meta_features.csv")
+    except FileNotFoundError:
+        print("No meta_features.csv found. Please run the dataset evaluation first.")
     
     # Step 2: Train meta-model (if we have enough data)
     if len(records) > 0:
