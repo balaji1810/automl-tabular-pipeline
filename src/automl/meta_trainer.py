@@ -696,7 +696,7 @@ def main():
             NumberOfInstancesWithMissingValues=(0, 20000),
             NumberOfNumericFeatures=(1, 15000),
             NumberOfSymbolicFeatures=(1, 15000),
-            max_datasets=2000
+            max_datasets=10
          )
     records = algorithms_eval(algorithms=algorithms, datasets=openml_datasets)
     

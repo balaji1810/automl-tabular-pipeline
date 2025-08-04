@@ -19,7 +19,7 @@ algorithms = [
     BayesianRidge(),
     LinearRegression(),
     SVR(),
-    TabPFNRegressor(n_jobs=-1, device="auto")
+    # TabPFNRegressor(n_jobs=-1, device="auto")
     # device="cuda" if torch.cuda.is_available() else "cpu",
 ]
 
