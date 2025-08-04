@@ -40,7 +40,7 @@ def hyperparam_search_optuna(
         direction="maximize",
         sampler=BoTorchSampler()
     )
-    study.optimize(lambda trials: objective(trials, model_name), n_trials=timeout)
+    study.optimize(lambda trials: objective(trials, model_name), timeout=timeout)
 
     best_params = study.best_trial.params
     pipeline.set_params(**best_params)

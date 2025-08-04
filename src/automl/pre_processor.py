@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import pandas as pd
-from sklearn.calibration import LabelEncoder
 from sklearn.compose import ColumnTransformer
-from sklearn.discriminant_analysis import StandardScaler
+# from sklearn.discriminant_analysis import StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, RobustScaler
+from sklearn.preprocessing import OrdinalEncoder, RobustScaler
 
 
 def detect_column_types(X: pd.DataFrame) -> tuple[list[str], list[str]]:
@@ -18,10 +17,10 @@ def detect_column_types(X: pd.DataFrame) -> tuple[list[str], list[str]]:
     num_cols = X.select_dtypes(include=["number"]).columns.tolist()
     cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
     # Also treat low-cardinality ints as categorical
-    # for col in X.select_dtypes(include=["int"]):
-    #     if X[col].nunique() < 20 and col not in cat_cols:
-    #         cat_cols.append(col)
-    #         num_cols.remove(col)
+    for col in X.select_dtypes(include=["int"]):
+        if X[col].nunique() < 20 and col not in cat_cols:
+            cat_cols.append(col)
+            num_cols.remove(col)
     return num_cols, cat_cols
 
 
