@@ -11,7 +11,7 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.dummy import DummyRegressor
 from sklearn.preprocessing import StandardScaler
-from automl.constants import algorithms
+from automl.constants_gpu import algorithms
 import openml
 from scipy.stats import spearmanr
 import joblib
