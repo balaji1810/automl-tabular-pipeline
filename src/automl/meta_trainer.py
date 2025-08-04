@@ -60,12 +60,12 @@ class MultiHeadRankingNetwork(nn.Module):
         # Shared Feature Extractor
         self.shared_layers = nn.Sequential(
             nn.Linear(input_size, 64), # TODO: changed from 128 to 64
-            nn.BatchNorm1d(64),
+            nn.LayerNorm(64),  # Changed from BatchNorm1d to LayerNorm to handle small batches
             nn.ReLU(),
             nn.Dropout(dropout),
             
             nn.Linear(64, 24), # TODO: changed from 64 to 24
-            nn.BatchNorm1d(24),
+            nn.LayerNorm(24),  # Changed from BatchNorm1d to LayerNorm to handle small batches
             nn.ReLU(),
             nn.Dropout(dropout),
             
@@ -620,8 +620,8 @@ def algorithms_eval(algorithms: list, datasets: list):
         preprocessor = build_preprocessor(X)
         print("============= Preprocessor built inside meta_trainer.py =============")
         # 1) extract meta-features
-        from meta_features import extract_meta_features
-        meta = extract_meta_features(X, y)
+        from meta_features import extract_meta_features_pymfe
+        meta = extract_meta_features_pymfe(X, y)
 
         print("============== Meta-features extracted ==============")
 
@@ -690,7 +690,7 @@ def main():
     
     # Step 1: Generate meta-learning dataset
     openml_datasets = load_openml_datasets(
-            NumberOfFeatures=(1, 5000),
+            NumberOfFeatures=(10, 1025),
             NumberOfInstances=(10, 50000),
             NumberOfInstancesWithMissingValues=(0, 20000),
             NumberOfNumericFeatures=(1, 15000),
