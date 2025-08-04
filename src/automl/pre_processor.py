@@ -38,7 +38,6 @@ def build_preprocessor(
     if num_cols:
         num_steps = []
         num_steps.append(("imputer", SimpleImputer(strategy="mean")))
-        # num_steps.append(("scaler", StandardScaler()))
         num_steps.append(("robust_scaler", RobustScaler()))
         transformers.append(("numerical", Pipeline(steps=num_steps), num_cols))
     if cat_cols:

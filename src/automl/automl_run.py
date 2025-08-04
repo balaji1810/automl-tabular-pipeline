@@ -52,7 +52,7 @@ class AutoML:
 
         # Get algorithm recommendations from meta-learning
         meta_features_df = pd.DataFrame([meta_features])
-        meta_model, checkpoint = load_ranking_meta_model("src/automl/meta_model_uci.pth")
+        meta_model, checkpoint = load_ranking_meta_model("src/automl/meta_model.pth")
         meta_model_predictions = predict_algorithm_rankings(meta_model, checkpoint, meta_features_df)
         
         meta_model_predictions = meta_model_predictions.apply(
@@ -75,6 +75,7 @@ class AutoML:
             test_size=0.2,
         )
         
+        # Equally distributed biven time for each selected algorithm evaluation
         eval_time = int(self.timeout / len(selected_algorithms.columns))
 
         for model_name in selected_algorithms.columns:

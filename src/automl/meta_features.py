@@ -79,34 +79,6 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
             preprocessor.set_output(transform="default")  # Force numpy output
         except AttributeError:
             pass  # Some transformers don't have set_output method
-        # ADDITIONAL FIX: Handle the ColumnTransformer's sparse_threshold
-        if hasattr(preprocessor, 'sparse_threshold'):
-            preprocessor.sparse_threshold = 0  # Force dense output
-            print(" • Set sparse_threshold=0 to force dense output")
-        if hasattr(preprocessor, 'transformers'):
-            print(" • Configuring ColumnTransformer components...")
-            for name, transformer, columns in preprocessor.transformers:
-                # Handle Pipeline transformers
-                if hasattr(transformer, 'steps'):
-                    for step_name, step_transformer in transformer.steps:
-                        if hasattr(step_transformer, 'sparse_threshold'):
-                            step_transformer.sparse_threshold = 0
-                        if hasattr(step_transformer, 'sparse'):
-                            step_transformer.sparse = False
-                        # Fix StandardScaler centering issue
-                        if hasattr(step_transformer, 'with_centering'):
-                            step_transformer.with_centering = False
-                            print(f"   - Disabled centering for {step_name}")
-                # Handle direct transformers
-                else:
-                    if hasattr(transformer, 'sparse_threshold'):
-                        transformer.sparse_threshold = 0
-                    if hasattr(transformer, 'sparse'):
-                        transformer.sparse = False
-                    if hasattr(transformer, 'with_centering'):
-                        transformer.with_centering = False
-                        print(f"   - Disabled centering for {name}")
-        
         X_processed = preprocessor.fit_transform(X)
         
         print(f" • Preprocessor output type: {type(X_processed)}")
@@ -142,21 +114,13 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
                 print(f" • Converting sparse column {col} to dense")
                 X_processed[col] = X_processed[col].sparse.to_dense()
 
-    # if hasattr(X_processed, 'toarray'):  # Check if it's a sparse matrix
-    #     print(" sparse matrix detected")
-    
-    # Get dimensions after preprocessing
-    # n, d = X_processed.shape
-    
     # Basic sizes (using both original and processed dimensions)
     meta_features = {
         "n_samples": n,
         "n_features": d,
-        # "n_features_processed": d,
         "log_n_samples": np.log(n + 1) if n > 0 else 0.0,
         "log_n_features": np.log(d + 1) if d > 0 else 0.0,
         "feature_ratio": d / n if n else 0.0,
-        # "feature_expansion_ratio": d / d if d > 0 else 1.0,
     }
     
     # Target statistics with sparse handling
@@ -205,7 +169,6 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
         meta_features.update({
             "mean_feature_skew": 0.0,
             "mean_feature_kurtosis": 0.0,
-            # "zero_var_pct": 1.0,
             "mean_abs_corr": 0.0,
             "max_abs_corr": 0.0,
         })
@@ -231,10 +194,6 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
             meta_features["mean_feature_skew"]     = float(skew(means))
             meta_features["mean_feature_kurtosis"] = float(kurtosis(means))
             print(f" • ✓ Feature statistics computed")
-
-            # 2) Zero-variance percentage
-            # zero_var = (X_num.var(axis=0) == 0).sum()
-            # meta_features["zero_var_pct"] = float(zero_var / X_num.shape[1])
 
             # 3) Pairwise correlations (only if >1 numeric column)
             print(f" • Computing correlations for {X_num.shape[1]} features...")
@@ -284,7 +243,6 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
     dummy_mean = DummyRegressor(strategy='mean')
     dummy_mean.fit(X_train_processed, y_train)
     y_pred_mean = dummy_mean.predict(X_test_processed)
-    
     meta_features['mean_predictor_r2'] = r2_score(y_test, y_pred_mean)
     
     print("evaluating decision stump ")
@@ -299,10 +257,6 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
         print(f"Error evaluating decision stump: {e}")
         # Use mean predictor performance as fallback (decision stump should at least match dummy)
         meta_features['decision_stump_r2'] = meta_features['mean_predictor_r2']
-    # # Relative improvement over mean predictor
-    # meta_features['stump_vs_mean_r2_ratio'] = (
-    #     meta_features['decision_stump_r2'] / max(meta_features['mean_predictor_r2'], 1e-10)
-    # )
     
     print("evaluating simple rule model ")
     # 4.3) Simple rule model performance (linear regression)
@@ -312,11 +266,6 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
 
     meta_features['simple_rule_r2'] = r2_score(y_test, y_pred_rule)
         
-    # # Relative improvement over mean predictor
-    # meta_features['rule_vs_mean_r2_ratio'] = (
-    #     meta_features['simple_rule_r2'] / max(meta_features['mean_predictor_r2'], 1e-10)
-    # )
-    
     print("evaluating algorithms on 1% sample ")
     # 4.4) Performance of algorithms on 1% of data
     if X_train_processed.shape[0] > 100:  # Only if we have enough data
@@ -344,24 +293,11 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
                 
                 meta_features[f'{algo_name}_1pct_r2'] = algo_r2
                 
-                # # Relative performance vs baselines
-                # meta_features[f'{algo_name}_vs_mean_r2_ratio'] = (
-                #     algo_r2 / max(meta_features['mean_predictor_r2'], 1e-10)
-                # )
-                # meta_features[f'{algo_name}_vs_stump_r2_ratio'] = (
-                #     algo_r2 / max(meta_features['decision_stump_r2'], 1e-10)
-                # )
-                
             except Exception as e:
                 print(f"========= Error evaluating {algo_name} on 1% data: {e} ========== ")
                 meta_features[f'{algo_name}_1pct_r2'] = -1.0
-                # meta_features[f'{algo_name}_1pct_rmse'] = float('inf')
-                # meta_features[f'{algo_name}_vs_mean_r2_ratio'] = 0.0
-                # meta_features[f'{algo_name}_vs_stump_r2_ratio'] = 0.0
     
     # 4.5) Additional derived meta-features
-    # meta_features['baseline_difficulty'] = 1 - meta_features['mean_predictor_r2']
-    # meta_features['linear_separability'] = meta_features['simple_rule_r2']
     meta_features['tree_advantage'] = (
         meta_features['decision_stump_r2'] - meta_features['simple_rule_r2']
     )

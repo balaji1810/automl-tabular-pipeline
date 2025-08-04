@@ -379,7 +379,7 @@ def train_meta_model(dataset_df: pd.DataFrame,
         }
     }
     
-    torch.save((model, model_package), save_path)
+    torch.save(model_package, save_path)
     print(f"\nMulti-Head Ranking Network saved to {save_path}")
     
     return model_package
@@ -606,22 +606,15 @@ def algorithms_eval(algorithms: list, datasets: list):
 
         # Check if target is numeric
         if not pd.api.types.is_numeric_dtype(y):
-            # print("   • Target is not numeric, skipping dataset")
             continue
         
         # Split into train/test
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.3, random_state=42
         )
-
-        # print(f"   • Train shape: {X_train.head()}, Test shape: {X_test.head()}")
         
-        # Build preprocessor on all data (to avoid leakage, you can fit only on train)
-        from pre_processor import build_preprocessor
-        preprocessor = build_preprocessor(X)
-        print("============= Preprocessor built inside meta_trainer.py =============")
         # 1) extract meta-features
-        from meta_features import extract_meta_features
+        from automl.meta_features import extract_meta_features
         meta = extract_meta_features(X, y)
 
         print("============== Meta-features extracted ==============")
@@ -631,6 +624,10 @@ def algorithms_eval(algorithms: list, datasets: list):
         for Algo in algorithms:
             name = Algo.__class__.__name__
             print(f"   • Training {name}...", end=" ", flush=True)
+            
+            from automl.smart_preprocessor import build_algorithm_aware_preprocessor
+            preprocessor = build_algorithm_aware_preprocessor(X, name)
+            
             try:
                 model = Pipeline([
                     ("preproc", preprocessor),
@@ -653,29 +650,14 @@ def algorithms_eval(algorithms: list, datasets: list):
 
         # 4) assemble record
         record = {
-            # "dataset_index": i,
-            # "dataset_id": ds["dataset_id"],
             **meta,
             **{f"{n}_rank": i+1 for i, n in enumerate(sorted_names)},
-            # **{f"{n}_r2": scores[n] for n in scores}, # full evaluation scores
         }
         records.append(record)
 
     # 5) save to CSV
     df = pd.DataFrame(records)
     df.to_csv("meta_features.csv", index=False)
-    
-    # # Save updated failing datasets list
-    # failing_df = pd.DataFrame({'failing_dataset_ids': failing_datasets})
-    # failing_df.to_csv("failing_datasets_list.csv", index=False)
-    
-    # print(f"\nDataset Processing Summary:")
-    # print(f"• Total datasets attempted: {len(datasets)}")
-    # print(f"• Successfully processed: {len(records)}")
-    # print(f"• Failed to process: {len(datasets) - len(records)}")
-    # print(f"• Success rate: {len(records)/len(datasets)*100:.1f}%")
-    # print(f"• Updated failing datasets list saved to: failing_datasets_list.csv")
-    # print(f"• Total failing datasets: {len(failing_datasets)}")
     
     return records
     
@@ -696,7 +678,7 @@ def main():
             NumberOfInstancesWithMissingValues=(0, 20000),
             NumberOfNumericFeatures=(1, 15000),
             NumberOfSymbolicFeatures=(1, 15000),
-            max_datasets=10
+            max_datasets=2
          )
     records = algorithms_eval(algorithms=algorithms, datasets=openml_datasets)
     
