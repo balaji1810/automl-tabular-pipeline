@@ -1,0 +1,2 @@
+,BayesianRidge,TabPFNRegressor,LinearRegression,RandomForestRegressor,MLPRegressor,SVR,XGBRegressor,LGBMRegressor,HistGradientBoostingRegressor,GradientBoostingRegressor,DecisionTreeRegressor,recommended_algorithm
+0,4,1,2,3,5,6,7,11,9,10,8,TabPFNRegressor

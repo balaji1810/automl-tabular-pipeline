@@ -88,7 +88,7 @@ class AutoML:
             logger.info(f"Selected model: {model_name_str}")
 
             # Build algorithm-specific preprocessor for this individual algorithm
-            algorithm_specific_preprocessor = build_algorithm_aware_preprocessor(X_train, model_name_str)
+            algorithm_specific_preprocessor = build_algorithm_aware_preprocessor(X, model_name_str)
             algorithm_strategy = determine_preprocessing_strategy(model_name_str)
             logger.info(f"Using {algorithm_strategy} preprocessing strategy for {model_name_str}")
 

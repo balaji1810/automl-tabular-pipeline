@@ -23,7 +23,7 @@ def hyperparam_search_optuna(
     Run a BOHB optimization to maximize `scoring` over sklearn Pipeline with multi-fidelity optimization.
     """
     def objective(trial : optuna.Trial, model_name: str) -> float:
-
+        print(f"=========================== {model_name} ===========================")
         param = fetch_params(trial, model_name)
         
         # pipeline_params = {k: v for k, v in param.items() if k != "budget"}
