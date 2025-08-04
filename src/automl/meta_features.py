@@ -9,8 +9,8 @@ from sklearn.dummy import DummyRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 
-from pre_processor import build_preprocessor
-from constants import algorithms_dict
+from automl.pre_processor import build_preprocessor
+from automl.constants import algorithms_dict
 
 import warnings
 import os
