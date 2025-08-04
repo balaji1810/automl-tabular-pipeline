@@ -13,7 +13,7 @@ algorithms = [
     XGBRegressor(enable_categorical = True, n_jobs = -1),
     RandomForestRegressor(n_jobs=-1),
     DecisionTreeRegressor(),
-    HistGradientBoostingRegressor(),
+    # HistGradientBoostingRegressor(),
     GradientBoostingRegressor(),
     MLPRegressor(),
     BayesianRidge(),

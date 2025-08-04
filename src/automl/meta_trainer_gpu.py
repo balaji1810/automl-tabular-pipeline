@@ -493,7 +493,7 @@ def train_meta_model(dataset_df: pd.DataFrame,
         }
     }
     
-    torch.save((model, model_package), save_path)
+    torch.save(model_package, save_path)
     print(f"\nMulti-Head Ranking Network saved to {save_path}")
     
     return model_package
