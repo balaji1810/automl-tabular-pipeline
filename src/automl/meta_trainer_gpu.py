@@ -789,7 +789,7 @@ def algorithms_eval(algorithms: list, datasets: list, use_gpu: bool = True, skip
             preprocessor = build_preprocessor(X)
             print("============= Preprocessor built inside meta_trainer.py =============")
         except ImportError:
-            from pre_processor import build_preprocessor
+            from automl.pre_processor import build_preprocessor
             preprocessor = build_preprocessor(X)
             print("============= Preprocessor built inside meta_trainer.py =============")
         
@@ -798,7 +798,7 @@ def algorithms_eval(algorithms: list, datasets: list, use_gpu: bool = True, skip
             from automl.meta_features import extract_meta_features
             meta = extract_meta_features(X, y)
         except ImportError:
-            from meta_features import extract_meta_features
+            from automl.meta_features import extract_meta_features
             meta = extract_meta_features(X, y)
 
         print("============== Meta-features extracted ==============")
