@@ -552,6 +552,7 @@ def load_openml_datasets(
     """
     datasets = openml.datasets.list_datasets(output_format='dataframe')
     datasets = datasets[(datasets['NumberOfClasses'] == 0)]
+    datasets = datasets[~datasets['format'].isin(['Sparse_ARFF', 'sparse_arff'])]  # Exclude sparse formats
 
     filtered = datasets[
         (datasets['NumberOfFeatures'] >= NumberOfFeatures[0]) &
@@ -599,13 +600,13 @@ def algorithms_eval(algorithms: list, datasets: list):
 
     for i, ds in enumerate(datasets):
         dataset_id = ds["dataset_id"]
-        print(f"→ Processing dataset {i+1}/{len(datasets)} (ID: {dataset_id})")
+        
         X, y = ds["X"], ds["y"]
-        print(f"   • Dataset shape: {X.shape}, target shape: {y.shape}")
+        print(f"→ Processing dataset {i+1}/{len(datasets)} (ID: {dataset_id}) Dataset shape: {X.shape}, target shape: {y.shape}")
 
         # Check if target is numeric
         if not pd.api.types.is_numeric_dtype(y):
-            print("   • Target is not numeric, skipping dataset")
+            # print("   • Target is not numeric, skipping dataset")
             continue
         
         # Split into train/test
@@ -613,15 +614,15 @@ def algorithms_eval(algorithms: list, datasets: list):
             X, y, test_size=0.3, random_state=42
         )
 
-        print(f"   • Train shape: {X_train.head()}, Test shape: {X_test.head()}")
+        # print(f"   • Train shape: {X_train.head()}, Test shape: {X_test.head()}")
         
         # Build preprocessor on all data (to avoid leakage, you can fit only on train)
         from pre_processor import build_preprocessor
         preprocessor = build_preprocessor(X)
         print("============= Preprocessor built inside meta_trainer.py =============")
         # 1) extract meta-features
-        from meta_features import extract_meta_features_pymfe
-        meta = extract_meta_features_pymfe(X, y)
+        from meta_features import extract_meta_features
+        meta = extract_meta_features(X, y)
 
         print("============== Meta-features extracted ==============")
 
@@ -662,7 +663,7 @@ def algorithms_eval(algorithms: list, datasets: list):
 
     # 5) save to CSV
     df = pd.DataFrame(records)
-    df.to_csv("meta_Y.csv", index=False)
+    df.to_csv("meta_features.csv", index=False)
     
     # # Save updated failing datasets list
     # failing_df = pd.DataFrame({'failing_dataset_ids': failing_datasets})
@@ -690,12 +691,12 @@ def main():
     
     # Step 1: Generate meta-learning dataset
     openml_datasets = load_openml_datasets(
-            NumberOfFeatures=(10, 1025),
+            NumberOfFeatures=(10, 5000),
             NumberOfInstances=(10, 50000),
             NumberOfInstancesWithMissingValues=(0, 20000),
             NumberOfNumericFeatures=(1, 15000),
             NumberOfSymbolicFeatures=(1, 15000),
-            max_datasets=1000
+            max_datasets=2000
          )
     records = algorithms_eval(algorithms=algorithms, datasets=openml_datasets)
     
