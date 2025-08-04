@@ -506,7 +506,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
 def build_universal_preprocessor(X: pd.DataFrame, preprocessing_strategy='balanced') -> ColumnTransformer:
     """
     Build a comprehensive preprocessor that works well for all algorithm types.
-    Uses the custom Universal classes for more intelligent preprocessing.
+    Uses the custom classes for more intelligent preprocessing.
     
     Args:
         X: Input DataFrame

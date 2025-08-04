@@ -1,9 +1,10 @@
 import optuna
-try:
-    from optuna.integration import BoTorchSampler
-except ImportError:
-    # Fallback to TPE sampler if BoTorch is not available
-    BoTorchSampler = optuna.samplers.TPESampler
+# try:
+#     from optuna.integration import BoTorchSampler
+# except ImportError:
+#     # Fallback to TPE sampler if BoTorch is not available
+#     BoTorchSampler = optuna.samplers.TPESampler
+from optuna.samplers import TPESampler
 
 import pandas as pd
 from sklearn.pipeline import Pipeline
@@ -38,7 +39,7 @@ def hyperparam_search_optuna(
     # True BOHB: Bayesian Optimization + HyperBand
     study = optuna.create_study(
         direction="maximize",
-        sampler=BoTorchSampler()
+        sampler=TPESampler()
     )
     study.optimize(lambda trials: objective(trials, model_name), timeout=timeout)
 

@@ -14,7 +14,6 @@ from automl.constants import algorithms_dict
 
 import warnings
 import os
-from pymfe.mfe import MFE
 
 # Suppress LightGBM warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="lightgbm")
