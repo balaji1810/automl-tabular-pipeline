@@ -41,7 +41,7 @@ predict_split_flag = False  # Flag to control whether to split predictions or no
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train or load meta-model for algorithm selection.")
-    parser.add_argument('--model-path', type=str, default='meta_model.pth',
+    parser.add_argument('--model-path', type=str, default='src/automl/meta_model.pth',
                         help='Path to save/load the meta-model')
     parser.add_argument('--split', action='store_true',
                         help='Whether to make predictions using the trained model')
@@ -379,7 +379,7 @@ def train_meta_model(dataset_df: pd.DataFrame,
         }
     }
     
-    torch.save((model, model_package), save_path)
+    torch.save( model_package, save_path)
     print(f"\nMulti-Head Ranking Network saved to {save_path}")
     
     return model_package
@@ -389,6 +389,7 @@ def load_ranking_meta_model(model_path: str):
     """Load a trained Multi-Head Ranking Network."""
     device = torch.device("cpu")
     checkpoint = torch.load(model_path, map_location=device, weights_only=False)
+    # model,checkpoint = saved_data
     
     # Rebuild model architecture
     arch = checkpoint['model_architecture']
@@ -398,16 +399,18 @@ def load_ranking_meta_model(model_path: str):
     ).to(device)
     
     model.load_state_dict(checkpoint['model_state_dict'])
+
+    model.to(device)
     model.eval()
     
-    print(f"Loaded Multi-Head Ranking Network:")
-    print(f"  Model type: {checkpoint['metadata']['model_type']}")
-    print(f"  Input size: {arch['input_size']}")
-    print(f"  Number of algorithms: {arch['num_algorithms']}")
-    print(f"  Number of features: {checkpoint['metadata']['num_features']}")
-    print(f"  Test Spearman correlation: {checkpoint['training_info']['test_spearman_corr']:.4f}")
-    print(f"  Test Top-1 accuracy: {checkpoint['training_info']['test_top1_accuracy']:.4f}")
-    print(f"  Number of datasets: {checkpoint['metadata']['num_datasets']}")
+    # print(f"Loaded Multi-Head Ranking Network:")
+    # print(f"  Model type: {checkpoint['metadata']['model_type']}")
+    # print(f"  Input size: {arch['input_size']}")
+    # print(f"  Number of algorithms: {arch['num_algorithms']}")
+    # print(f"  Number of features: {checkpoint['metadata']['num_features']}")
+    # print(f"  Test Spearman correlation: {checkpoint['training_info']['test_spearman_corr']:.4f}")
+    # print(f"  Test Top-1 accuracy: {checkpoint['training_info']['test_top1_accuracy']:.4f}")
+    # print(f"  Number of datasets: {checkpoint['metadata']['num_datasets']}")
     
     return model, checkpoint
 
@@ -688,16 +691,23 @@ def main():
     print(f"Split flag set to: {predict_split_flag}")
     # Example usage of the meta-learning pipeline
     
-    # Step 1: Generate meta-learning dataset
-    openml_datasets = load_openml_datasets(
-            NumberOfFeatures=(10, 1025),
-            NumberOfInstances=(10, 50000),
-            NumberOfInstancesWithMissingValues=(0, 20000),
-            NumberOfNumericFeatures=(1, 15000),
-            NumberOfSymbolicFeatures=(1, 15000),
-            max_datasets=1000
-         )
-    records = algorithms_eval(algorithms=algorithms, datasets=openml_datasets)
+    # # Step 1: Generate meta-learning dataset
+    # openml_datasets = load_openml_datasets(
+    #         NumberOfFeatures=(10, 1025),
+    #         NumberOfInstances=(10, 50000),
+    #         NumberOfInstancesWithMissingValues=(0, 20000),
+    #         NumberOfNumericFeatures=(1, 15000),
+    #         NumberOfSymbolicFeatures=(1, 15000),
+    #         max_datasets=1000
+    #      )
+    # records = algorithms_eval(algorithms=algorithms, datasets=openml_datasets)
+
+    # fetch records from meta_features_gputested.csv
+
+    import pandas as pd
+    records = pd.read_csv("src/automl/meta_features_gputested.csv").to_dict(orient='records')
+    print(f"Loaded {len(records)} records from meta_features_gputested.csv")
+    records = pd.DataFrame(records) 
     
     # Step 2: Train meta-model (if we have enough data)
     if len(records) > 0:
