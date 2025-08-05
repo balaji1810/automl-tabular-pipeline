@@ -14,9 +14,10 @@ from sklearn.pipeline import Pipeline
 import torch
 # from xgboost import XGBRegressor
 from automl.meta_features import extract_meta_features
-from automl.FeatureSelector_new import FeatureSelector
+from automl.FeatureSelector import FeatureSelector
 # from automl.neps import hyperparam_search_neps
 from automl.optuna_util import hyperparam_search_optuna
+from automl.pre_processor import build_preprocessor
 from automl.smart_preprocessor import build_algorithm_aware_preprocessor, determine_preprocessing_strategy
 from automl.constants import algorithms_dict
 from automl.meta_trainer import load_ranking_meta_model, predict_algorithm_rankings
@@ -47,26 +48,26 @@ class AutoML:
     ) -> AutoML:
 
         # Extract meta-features first
-        meta_features = extract_meta_features(X, y)
-        logger.info(f"Extracted meta-features")
+        # meta_features = extract_meta_features(X, y)
+        # logger.info(f"Extracted meta-features")
 
-        # Get algorithm recommendations from meta-learning
-        meta_features_df = pd.DataFrame([meta_features])
-        meta_model, checkpoint = load_ranking_meta_model("src/automl/meta_model_uci.pth")
-        meta_model_predictions = predict_algorithm_rankings(meta_model, checkpoint, meta_features_df)
+        # # Get algorithm recommendations from meta-learning
+        # meta_features_df = pd.DataFrame([meta_features])
+        # meta_model, checkpoint = load_ranking_meta_model("src/automl/meta_model_uci.pth")
+        # meta_model_predictions = predict_algorithm_rankings(meta_model, checkpoint, meta_features_df)
         
-        meta_model_predictions = meta_model_predictions.apply(
-            lambda row: pd.Series(
-                row[row.apply(lambda x: isinstance(x, (int, float)))].sort_values().values,
-                index=row[row.apply(lambda x: isinstance(x, (int, float)))].sort_values().index
-            ),
-            axis=1
-        )
-        selected_algorithms = meta_model_predictions.iloc[:,:4] # Keep top 4 algorithms
+        # meta_model_predictions = meta_model_predictions.apply(
+        #     lambda row: pd.Series(
+        #         row[row.apply(lambda x: isinstance(x, (int, float)))].sort_values().values,
+        #         index=row[row.apply(lambda x: isinstance(x, (int, float)))].sort_values().index
+        #     ),
+        #     axis=1
+        # )
+        # selected_algorithms = meta_model_predictions.iloc[:,:4] # Keep top 4 algorithms
         
         # Convert selected algorithms to list of strings
-        selected_algorithm_names = [str(algo) for algo in selected_algorithms.columns.tolist()]
-        logger.info(f"Selected algorithms: {selected_algorithm_names}")
+        # selected_algorithm_names = [str(algo) for algo in selected_algorithms.columns.tolist()]
+        # logger.info(f"Selected algorithms: {selected_algorithm_names}")
         
         X_train, X_val, y_train, y_val = train_test_split(
             X,
@@ -75,9 +76,23 @@ class AutoML:
             test_size=0.2,
         )
         
-        eval_time = int(self.timeout / len(selected_algorithms.columns))
+        # eval_time = int(self.timeout / len(selected_algorithms.columns))
+        eval_time = int(9*60*60 / 5) # 9 hours for 5 algorithms
 
-        for model_name in selected_algorithms.columns:
+        # for model_name in selected_algorithms.columns:
+        for model_name in [
+            "XGBRegressor",
+            "RandomForestRegressor",
+            "LGBMRegressor",
+            "HistGradientBoostingRegressor",
+            "DecisionTreeRegressor",
+            # "GradientBoostingRegressor",
+            # "LinearRegression",
+            # "MLPRegressor",
+            # "BayesianRidge",
+            # "SVR",
+            # "TabPFNRegressor"
+        ]:
             model_name_str = str(model_name)  # Ensure it's a string
             model = algorithms_dict[model_name_str]
             if model_name_str in ["LinearRegression", "BayesianRidge", "SVR"]:
@@ -87,9 +102,10 @@ class AutoML:
             logger.info(f"Selected model: {model_name_str}")
 
             # Build algorithm-specific preprocessor for this individual algorithm
-            algorithm_specific_preprocessor = build_algorithm_aware_preprocessor(X_train, model_name_str)
+            # algorithm_specific_preprocessor = build_preprocessor(X)
+            algorithm_specific_preprocessor = build_algorithm_aware_preprocessor(X, model_name_str)
             algorithm_strategy = determine_preprocessing_strategy(model_name_str)
-            logger.info(f"Using {algorithm_strategy} preprocessing strategy for {model_name_str}")
+            # logger.info(f"Using {algorithm_strategy} preprocessing strategy for {model_name_str}")
 
             model_pipeline = Pipeline([
                 ("preproc", algorithm_specific_preprocessor),  # Algorithm-specific preprocessing

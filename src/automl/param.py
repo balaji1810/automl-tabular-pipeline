@@ -1,21 +1,4 @@
 import optuna
-import warnings
-import os
-
-# Suppress LightGBM warnings
-warnings.filterwarnings("ignore", category=UserWarning, module="lightgbm")
-warnings.filterwarnings("ignore", message=".*LightGBM.*")
-warnings.filterwarnings("ignore", message=".*No further splits.*")
-warnings.filterwarnings("ignore", message=".*Stopped training.*")
-os.environ['LIGHTGBM_VERBOSITY'] = '-1'  # Suppress LightGBM verbose output
-
-# Suppress other common ML warnings
-warnings.filterwarnings("ignore", category=FutureWarning)
-warnings.filterwarnings("ignore", category=RuntimeWarning)
-
-# Additional LightGBM suppression
-import logging
-logging.getLogger("lightgbm").setLevel(logging.ERROR)
 
 def XGBRegressorParams(trial) -> dict:
     """
@@ -35,13 +18,6 @@ def XGBRegressorParams(trial) -> dict:
     "model__alpha": trial.suggest_float("model__alpha", 1e-8, 1.0, log=True),
     "model__subsample": trial.suggest_float("model__subsample", 0.2, 1.0),
     "model__colsample_bytree": trial.suggest_float("model__colsample_bytree", 0.2, 1.0),
-    
-    # FeatureSelector parameters
-    "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),
-    "featureselector__select_method": trial.suggest_categorical("featureselector__select_method", ["permutation", "tree"]),
-    "featureselector__add_polynomial_features_xgb": trial.suggest_categorical("featureselector__add_polynomial_features_xgb", [True, False]),
-    "featureselector__add_binning_features_xgb": trial.suggest_categorical("featureselector__add_binning_features_xgb", [True, False]),
-    "featureselector__add_statistical_features_xgb": trial.suggest_categorical("featureselector__add_statistical_features_xgb", [True, False])
     }
     
     if param["model__booster"] in ["gbtree", "dart"]:
@@ -78,13 +54,6 @@ def LGBMRegressorParams(trial) -> dict:
         "model__bagging_fraction": trial.suggest_float("model__bagging_fraction", 0.4, 1.0),
         "model__reg_alpha": trial.suggest_float("model__reg_alpha", 1e-8, 10.0, log=True),
         "model__reg_lambda": trial.suggest_float("model__reg_lambda", 1e-8, 10.0, log=True),
-        
-        # FeatureSelector parameters
-        "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.7, 1.0),
-        "featureselector__select_method": trial.suggest_categorical("featureselector__select_method", ["permutation", "tree"]),
-        "featureselector__add_quantile_binning_lgb": trial.suggest_categorical("featureselector__add_quantile_binning_lgb", [True, False]),
-        "featureselector__add_categorical_encodings_lgb": trial.suggest_categorical("featureselector__add_categorical_encodings_lgb", [True, False]),
-        "featureselector__add_aggregation_features_lgb": trial.suggest_categorical("featureselector__add_aggregation_features_lgb", [True, False]),
     }
     return param
 
@@ -103,7 +72,6 @@ def MLPRegressorParams(trial):
         "model__activation": trial.suggest_categorical("model__activation", ["identity", "logistic", "relu", "tanh"]),
         "model__alpha": trial.suggest_float("model__alpha", 1e-5, 1.0, log=True),
         "model__learning_rate_init": trial.suggest_float("model__learning_rate_init", 1e-4, 1e-2, log=True),
-        "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),
     }
     return param
 
@@ -122,8 +90,7 @@ def RandomForestRegressorParams(trial):
         "model__min_samples_split": trial.suggest_int("model__min_samples_split", 2, 10),
         "model__min_samples_leaf": trial.suggest_int("model__min_samples_leaf", 1, 4),
         "model__max_features": trial.suggest_categorical("model__max_features", ["sqrt", "log2", None]),
-        "model__bootstrap": trial.suggest_categorical("model__bootstrap", [True, False]),
-        "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),
+        "model__bootstrap": trial.suggest_categorical("model__bootstrap", [True, False])
     }
     return param
 
@@ -145,8 +112,7 @@ def GradientBoostingRegressorParams(trial):
         "model__min_samples_leaf": trial.suggest_int("model__min_samples_leaf", 1, 100),
         "model__max_features": trial.suggest_categorical("model__max_features", [None, "sqrt", "log2"]),
         "model__alpha": trial.suggest_float("model__alpha", 0.01, 0.99),
-        "model__max_leaf_nodes": trial.suggest_int("model__max_leaf_nodes", 2, 1000, log=True),
-        "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),   
+        "model__max_leaf_nodes": trial.suggest_int("model__max_leaf_nodes", 2, 1000, log=True)
     }
     return param
 
@@ -167,8 +133,7 @@ def HistGradientBoostingRegressorParams(trial):
         "model__max_iter": trial.suggest_int("model__max_iter", 50, 500),   
         "model__max_leaf_nodes": trial.suggest_int("model__max_leaf_nodes", 2, 1000, log=True),
         "model__max_depth": trial.suggest_int("model__max_depth", 1, 20),
-        "model__min_samples_leaf": trial.suggest_int("model__min_samples_leaf", 1, 20), 
-        "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),
+        "model__min_samples_leaf": trial.suggest_int("model__min_samples_leaf", 1, 20)
     }
     return param
 
@@ -183,8 +148,7 @@ def LinearRegressionParams(trial):
         dict: Hyperparameters for LinearRegression.
     """
     param = {
-        "model__fit_intercept": trial.suggest_categorical("model__fit_intercept", [True, False]),
-        "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),
+        "model__fit_intercept": trial.suggest_categorical("model__fit_intercept", [True, False])
     }
     return param
 
@@ -205,8 +169,7 @@ def BayesianRidgeParams(trial):
         "model__alpha_2": trial.suggest_float("model__alpha_2", 1e-6, 1.0, log=True),
         "model__lambda_1": trial.suggest_float("model__lambda_1", 1e-6, 1.0, log=True),
         "model__lambda_2": trial.suggest_float("model__lambda_2", 1e-6, 1.0, log=True),
-        "model__compute_score": trial.suggest_categorical("model__compute_score", [True, False]),
-        "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),
+        "model__compute_score": trial.suggest_categorical("model__compute_score", [True, False])
     }
     return params
 
@@ -223,8 +186,7 @@ def DecisionTreeRegressorParams(trial):
         "model__splitter": trial.suggest_categorical("model__splitter", ["best", "random"]),
         "model__criterion": trial.suggest_categorical("model__criterion", ["squared_error", "friedman_mse", "absolute_error"]),
         "model__min_samples_split": trial.suggest_int("model__min_samples_split", 2, 10),
-        "model__min_samples_leaf": trial.suggest_int("model__min_samples_leaf", 1, 4),
-        "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),
+        "model__min_samples_leaf": trial.suggest_int("model__min_samples_leaf", 1, 4)
     }
     return param
 
@@ -246,8 +208,6 @@ def SVRParam(trial):
         "model__epsilon": trial.suggest_float("model__epsilon", 1e-3, 1.0, log=True),
         "model__degree": trial.suggest_int("model__degree", 2, 5),
         "model__shrinking": trial.suggest_categorical("model__shrinking", [True, False]),
-        ""
-        "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),
     }
 
     return param
@@ -267,9 +227,26 @@ def TabPFNParams(trial):
         "model__softmax_temperature": trial.suggest_int("model__softmax_temperature", 0.7, 1.0),
         "model__average_before_softmax": trial.suggest_categorical("model__average_before_softmax", [True, False]),
         "model__differentiable_input": trial.suggest_categorical("model__differentiable_input", [True, False]),
-        "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.6, 1.0),
     }
     return param
+
+def FeatureSelectorParams(trial):
+    """
+    Generate hyperparameters for FeatureSelector using Optuna trial.
+    """
+    methods = ["permutation", "tree", "TruncatedSVD", "PCA", "KBest", "RecursiveFeatureElimination", "SequentialFeatureSelector"]
+    select_method = trial.suggest_categorical("featureselector__select_method", methods)
+
+    params = {
+        "featureselector__max_features": trial.suggest_float("featureselector__max_features", 0.5, 1.0),
+        "featureselector__select_method": select_method,
+    }
+    if select_method == "KBest":
+        score_fns = ["f_regression", "mutual_info_regression", "r_regression"]
+        params["featureselector__score_func"] = trial.suggest_categorical("featureselector__score_func", score_fns)
+    elif select_method == "RecursiveFeatureElimination":
+        params["featureselector__direction"] = trial.suggest_categorical("featureselector__direction", ["forward", "backward"])
+    return params
 
 def fetch_params(trial: optuna.Trial, model_name: str) -> dict:
     """
@@ -285,7 +262,7 @@ def fetch_params(trial: optuna.Trial, model_name: str) -> dict:
     model_params_map = {
         "XGBRegressor": XGBRegressorParams,
         "LGBMRegressor": LGBMRegressorParams,
-        "MLPRegressor": MLPRegressorParams,
+        "MLPRegressor": MLPRegressorParams,  # IndexError: list index out of range
         "RandomForestRegressor": RandomForestRegressorParams,
         "GradientBoostingRegressor": GradientBoostingRegressorParams,
         "HistGradientBoostingRegressor": HistGradientBoostingRegressorParams,
@@ -298,4 +275,8 @@ def fetch_params(trial: optuna.Trial, model_name: str) -> dict:
 
     if model_name not in model_params_map:
         raise ValueError(f"Model {model_name} is not supported.")
-    return model_params_map[model_name](trial)
+    
+    params = model_params_map[model_name](trial)
+    feature_params = FeatureSelectorParams(trial)
+    params.update(feature_params)
+    return params

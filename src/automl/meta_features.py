@@ -9,8 +9,8 @@ from sklearn.dummy import DummyRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 
-from pre_processor import build_preprocessor
-from constants import algorithms_dict
+from automl.pre_processor import build_preprocessor
+from automl.constants import algorithms_dict
 
 import warnings
 import os
@@ -355,7 +355,7 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
             except Exception as e:
                 print(f"========= Error evaluating {algo_name} on 1% data: {e} ========== ")
                 meta_features[f'{algo_name}_1pct_r2'] = -1.0
-                # meta_features[f'{algo_name}_1pct_rmse'] = float('inf')
+                meta_features[f'{algo_name}_1pct_rmse'] = float('inf')
                 # meta_features[f'{algo_name}_vs_mean_r2_ratio'] = 0.0
                 # meta_features[f'{algo_name}_vs_stump_r2_ratio'] = 0.0
     
@@ -373,3 +373,88 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
                                             meta_features['target_skew'] < 2) else 0
 
     return meta_features
+
+
+def extract_meta_features_pymfe(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
+    """Extract meta-features using PyMFE package for regression datasets."""
+    print("=========== Extracting meta-features using PyMFE ===========")
+    print(" X Type:", type(X), "Shape:", X.shape)
+    print(" y Type:", type(y), "Shape:", y.shape)
+    
+    # Ensure X is a DataFrame and y is a Series
+    if not isinstance(X, pd.DataFrame):
+        raise ValueError("X must be a pandas DataFrame")
+    if not isinstance(y, pd.Series):
+        if isinstance(y, pd.DataFrame):
+            y = y.iloc[:, 0] if y.shape[1] == 1 else y.iloc[:, 0]
+        else:
+            y = pd.Series(y)
+    
+    # Convert to numpy arrays for PyMFE (it works better with numpy)
+    X_numpy = X.values
+    y_numpy = y.values
+    
+    # Handle any remaining NaN values
+    if pd.isna(X_numpy).any() or pd.isna(y_numpy).any():
+        print(" • Cleaning NaN values for PyMFE...")
+        # Simple imputation for PyMFE
+        from sklearn.impute import SimpleImputer
+        imputer = SimpleImputer(strategy='median')
+        X_numpy = imputer.fit_transform(X_numpy)
+        
+        # For target, use median imputation
+        if pd.isna(y_numpy).any():
+            y_numpy = pd.Series(y_numpy).fillna(pd.Series(y_numpy).median()).values
+    
+    try:
+        # Initialize MFE for regression
+        mfe = MFE(groups=["general", "statistical", "model-based"], 
+                  features=["attr_to_inst", "cat_to_num", "freq_class", "inst_to_attr",
+                           "nr_attr", "nr_bin", "nr_class", "nr_inst", "nr_num",
+                           "can_cor", "cor", "cov", "eigenvalues", "g_mean", "gravity",
+                           "h_mean", "iq_range", "kurtosis", "lh_trace", "mad", "max",
+                           "mean", "median", "min", "nr_cor_attr", "nr_disc", "nr_norm",
+                           "nr_outliers", "range", "roy_root", "sd", "sd_ratio", "skewness",
+                           "sparsity", "t_mean", "var", "w_lambda",
+                           "best_node", "elite_nn", "linear_discr", "naive_bayes",
+                           "one_nn", "random_node", "worst_node"],
+                  random_state=42)
+        
+        print(" • Fitting PyMFE extractor...")
+        mfe.fit(X_numpy, y_numpy)
+        
+        print(" • Extracting meta-features...")
+        ft_names, ft_values = mfe.extract()
+        
+        # Convert to dictionary
+        meta_features = {}
+        for name, value in zip(ft_names, ft_values):
+            # Handle potential None or invalid values
+            if value is None or not np.isfinite(value):
+                meta_features[name] = 0.0
+            else:
+                meta_features[name] = float(value)
+        
+        print(f" • Extracted {len(meta_features)} meta-features successfully")
+        
+        return meta_features
+        
+    except Exception as e:
+        print(f" • Error with PyMFE extraction: {e}")
+        print(" • Falling back to basic meta-features...")
+        
+        # Fallback to basic meta-features if PyMFE fails
+        n, d = X.shape
+        basic_features = {
+            "n_samples": n,
+            "n_features": d,
+            "log_n_samples": np.log(n + 1),
+            "log_n_features": np.log(d + 1),
+            "feature_ratio": d / n if n > 0 else 0.0,
+            "target_mean": float(np.mean(y_numpy)),
+            "target_std": float(np.std(y_numpy)),
+            "target_skew": float(skew(y_numpy)),
+            "target_kurtosis": float(kurtosis(y_numpy)),
+        }
+        
+        return basic_features

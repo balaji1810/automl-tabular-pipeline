@@ -17,10 +17,10 @@ def detect_column_types(X: pd.DataFrame) -> tuple[list[str], list[str]]:
     num_cols = X.select_dtypes(include=["number"]).columns.tolist()
     cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
     # Also treat low-cardinality ints as categorical
-    for col in X.select_dtypes(include=["int"]):
-        if X[col].nunique() < 20 and col not in cat_cols:
-            cat_cols.append(col)
-            num_cols.remove(col)
+    # for col in X.select_dtypes(include=["int"]):
+    #     if X[col].nunique() < 20 and col not in cat_cols:
+    #         cat_cols.append(col)
+    #         num_cols.remove(col)
     return num_cols, cat_cols
 
 
@@ -44,7 +44,7 @@ def build_preprocessor(
     if cat_cols:
         cat_steps = []
         cat_steps.append(("imputer", SimpleImputer(strategy="most_frequent")))
-        cat_steps.append(("onehot", OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)))
+        cat_steps.append(("ordinal", OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)))
         transformers.append(("categorical", Pipeline(steps=cat_steps), cat_cols))
 
     preprocessor = ColumnTransformer(transformers=transformers, remainder="drop", sparse_threshold=0)

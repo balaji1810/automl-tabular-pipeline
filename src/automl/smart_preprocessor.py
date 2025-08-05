@@ -1,10 +1,3 @@
-"""
-Smart Preprocessor with Algorithm-Aware Strategy Selection
-
-This module integrates universal preprocessing with your AutoML pipeline,
-automatically selecting the best preprocessing strategy based on the algorithms being used.
-"""
-
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 import logging
@@ -51,9 +44,6 @@ def determine_preprocessing_strategy(algorithm_name: str) -> str:
     """
     if not algorithm_name:
         return 'balanced'
-    
-    # Single algorithm - optimize specifically for it
-    # if len(algorithm_names) == 1:
     algo_name = algorithm_name
     if algo_name in ALGORITHM_CATEGORIES['tree_based']:
         return 'conservative'
@@ -76,7 +66,7 @@ def build_algorithm_aware_preprocessor(
     
     Args:
         X: Input DataFrame
-        algorithm_names: List of algorithm class names that will be used
+        algorithm_name: List of algorithm class names that will be used
         custom_strategy: Override automatic strategy selection
         
     Returns:
