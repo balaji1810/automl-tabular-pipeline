@@ -262,7 +262,7 @@ def fetch_params(trial: optuna.Trial, model_name: str) -> dict:
     model_params_map = {
         "XGBRegressor": XGBRegressorParams,
         "LGBMRegressor": LGBMRegressorParams,
-        "MLPRegressor": MLPRegressorParams,  # IndexError: list index out of range
+        "MLPRegressor": MLPRegressorParams,
         "RandomForestRegressor": RandomForestRegressorParams,
         "GradientBoostingRegressor": GradientBoostingRegressorParams,
         "HistGradientBoostingRegressor": HistGradientBoostingRegressorParams,

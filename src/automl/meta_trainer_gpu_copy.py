@@ -11,7 +11,7 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.dummy import DummyRegressor
 from sklearn.preprocessing import StandardScaler
-from constants_gpu import algorithms
+from automl.algorithms_gpu import algorithms
 import openml
 from scipy.stats import spearmanr
 import joblib
@@ -919,11 +919,11 @@ def algorithms_eval(algorithms: list, datasets: list, use_gpu: bool = True, skip
         
         # Build preprocessor on all data (to avoid leakage, you can fit only on train)
         try:
-            from automl.pre_processor import build_preprocessor
+            from automl.pre_processor_old import build_preprocessor
             preprocessor = build_preprocessor(X)
             print("============= Preprocessor built inside meta_trainer.py =============")
         except ImportError:
-            from pre_processor import build_preprocessor
+            from automl.pre_processor_old import build_preprocessor
             preprocessor = build_preprocessor(X)
             print("============= Preprocessor built inside meta_trainer.py =============")
         

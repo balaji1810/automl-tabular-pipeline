@@ -1,9 +1,4 @@
 import optuna
-# try:
-#     from optuna.integration import BoTorchSampler
-# except ImportError:
-#     # Fallback to TPE sampler if BoTorch is not available
-#     BoTorchSampler = optuna.samplers.TPESampler
 from optuna.samplers import TPESampler
 
 import pandas as pd
@@ -21,22 +16,18 @@ def hyperparam_search_optuna(
     timeout: int
 ) -> Pipeline:
     """
-    Run a BOHB optimization to maximize `scoring` over sklearn Pipeline with multi-fidelity optimization.
+    Run a optimization to maximize `scoring` over sklearn Pipeline.
     """
     def objective(trial : optuna.Trial, model_name: str) -> float:
 
         param = fetch_params(trial, model_name)
-        
-        # pipeline_params = {k: v for k, v in param.items() if k != "budget"}
         pipeline.set_params(**param)
-        
-        # Standard training with budget as n_estimators
+
         pipeline.fit(X=X_train, y=y_train)
         score = float(pipeline.score(X_val, y_val))
         
         return score
 
-    # True BOHB: Bayesian Optimization + HyperBand
     study = optuna.create_study(
         direction="maximize",
         sampler=TPESampler()

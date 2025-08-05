@@ -1,5 +1,4 @@
 from math import floor
-import random
 from typing import Literal
 import pandas as pd
 import numpy as np
@@ -9,8 +8,6 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.feature_selection import SelectKBest, SequentialFeatureSelector, f_regression, mutual_info_regression, r_regression, RFE
 from sklearn.model_selection import train_test_split
 from sklearn.inspection import permutation_importance
-# from sklearn.ensemble import RandomForestRegressor
-from xgboost import XGBRegressor
 
 class FeatureSelector:
     def __init__(

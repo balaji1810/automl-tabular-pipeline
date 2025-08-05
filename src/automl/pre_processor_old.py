@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pandas as pd
 from sklearn.compose import ColumnTransformer
-# from sklearn.discriminant_analysis import StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder, RobustScaler
@@ -38,7 +37,6 @@ def build_preprocessor(
     if num_cols:
         num_steps = []
         num_steps.append(("imputer", SimpleImputer(strategy="mean")))
-        # num_steps.append(("scaler", StandardScaler()))
         num_steps.append(("robust_scaler", RobustScaler()))
         transformers.append(("numerical", Pipeline(steps=num_steps), num_cols))
     if cat_cols:

@@ -74,8 +74,8 @@ def build_algorithm_aware_preprocessor(
     """
     strategy = determine_preprocessing_strategy(algorithm_name)
     logger.info(f"Auto-selected preprocessing strategy: {strategy} for algorithms: {algorithm_name}")
-    
+
     # Use the universal preprocessor with the determined strategy
     preprocessor = build_universal_preprocessor(X, preprocessing_strategy=strategy)
-    
+
     return preprocessor
