@@ -705,8 +705,8 @@ def main():
     # fetch records from meta_features_gputested.csv
 
     import pandas as pd
-    records = pd.read_csv("src/automl/meta_features_gputested.csv").to_dict(orient='records')
-    print(f"Loaded {len(records)} records from meta_features_gputested.csv")
+    records = pd.read_csv("src/automl/meta_features_180.csv").to_dict(orient='records')
+    print(f"Loaded {len(records)} records from meta_features_180.csv")
     records = pd.DataFrame(records) 
     
     # Step 2: Train meta-model (if we have enough data)

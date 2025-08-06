@@ -45,26 +45,26 @@ class AutoML:
     ) -> AutoML:
 
         # Extract meta-features first
-        # meta_features = extract_meta_features(X, y)
-        # logger.info(f"Extracted meta-features")
+        meta_features = extract_meta_features(X, y)
+        logger.info(f"Extracted meta-features")
 
-        # # Get algorithm recommendations from meta-learning
-        # meta_features_df = pd.DataFrame([meta_features])
-        # meta_model, checkpoint = load_ranking_meta_model("src/automl/meta_model_uci.pth")
-        # meta_model_predictions = predict_algorithm_rankings(meta_model, checkpoint, meta_features_df)
+        # Get algorithm recommendations from meta-learning
+        meta_features_df = pd.DataFrame([meta_features])
+        meta_model, checkpoint = load_ranking_meta_model("src/automl/meta_model.pth")
+        meta_model_predictions = predict_algorithm_rankings(meta_model, checkpoint, meta_features_df)
         
-        # meta_model_predictions = meta_model_predictions.apply(
-        #     lambda row: pd.Series(
-        #         row[row.apply(lambda x: isinstance(x, (int, float)))].sort_values().values,
-        #         index=row[row.apply(lambda x: isinstance(x, (int, float)))].sort_values().index
-        #     ),
-        #     axis=1
-        # )
-        # selected_algorithms = meta_model_predictions.iloc[:,:4] # Keep top 4 algorithms
+        meta_model_predictions = meta_model_predictions.apply(
+            lambda row: pd.Series(
+                row[row.apply(lambda x: isinstance(x, (int, float)))].sort_values().values,
+                index=row[row.apply(lambda x: isinstance(x, (int, float)))].sort_values().index
+            ),
+            axis=1
+        )
+        selected_algorithms = meta_model_predictions.iloc[:,:4] # Keep top 4 algorithms
         
         # Convert selected algorithms to list of strings
-        # selected_algorithm_names = [str(algo) for algo in selected_algorithms.columns.tolist()]
-        # logger.info(f"Selected algorithms: {selected_algorithm_names}")
+        selected_algorithm_names = [str(algo) for algo in selected_algorithms.columns.tolist()]
+        logger.info(f"Selected algorithms: {selected_algorithm_names}")
         
         X_train, X_val, y_train, y_val = train_test_split(
             X,
