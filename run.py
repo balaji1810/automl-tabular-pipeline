@@ -11,8 +11,15 @@ from __future__ import annotations
 from pathlib import Path
 from sklearn.metrics import r2_score
 import numpy as np
+import sys
+from pathlib import Path
+
+# Ensure we import from the current project's src directory
+current_dir = Path(__file__).parent
+sys.path.insert(0, str(current_dir / "src"))
+
 from automl.data import Dataset
-from automl.automl import AutoML
+from automl.automl_pipeline import AutoML
 import argparse
 
 import logging
@@ -29,16 +36,15 @@ def main(
     output_path: Path,
     seed: int,
     datadir: Path,
+    timeout: int
 ):
     dataset = Dataset.load(datadir=datadir, task=task, fold=fold)
 
     logger.info("Fitting AutoML")
 
-    # You do not need to follow this setup or API it's merely here to provide
-    # an example of how your automl system could be used.
-    # As a general rule of thumb, you should **never** pass in any
-    # test data to your AutoML solution other than to generate predictions.
-    automl = AutoML(seed=seed)
+
+    automl = AutoML(seed=seed, timeout=timeout)
+        
     automl.fit(dataset.X_train, dataset.y_train)
     test_preds: np.ndarray | tuple[np.ndarray, np.ndarray] = automl.predict(dataset.X_test)
 
@@ -96,6 +102,16 @@ if __name__ == "__main__":
             " i.e. torch, numpy, pandas, sklearn, etc."
         )
     )
+    
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=60,
+        help=(
+            "Set optimization timeout"
+            " i.e. 60 = 60 seconds"
+        )
+    )
 
     parser.add_argument(
         "--datadir",
@@ -130,4 +146,5 @@ if __name__ == "__main__":
         output_path=args.output_path,
         datadir=args.datadir,
         seed=args.seed,
+        timeout=args.timeout
     )

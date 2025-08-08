@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import pandas as pd
 from sklearn.compose import ColumnTransformer
-from sklearn.discriminant_analysis import StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, RobustScaler
+from sklearn.preprocessing import OrdinalEncoder, RobustScaler
 
 
 def detect_column_types(X: pd.DataFrame) -> tuple[list[str], list[str]]:
@@ -25,7 +24,7 @@ def detect_column_types(X: pd.DataFrame) -> tuple[list[str], list[str]]:
 
 
 def build_preprocessor(
-    X: pd.DataFrame,
+    X: pd.DataFrame
 ) -> ColumnTransformer:
     """
     Build a ColumnTransformer for preprocessing:
@@ -38,13 +37,12 @@ def build_preprocessor(
     if num_cols:
         num_steps = []
         num_steps.append(("imputer", SimpleImputer(strategy="mean")))
-        # num_steps.append(("scaler", StandardScaler()))
         num_steps.append(("robust_scaler", RobustScaler()))
         transformers.append(("numerical", Pipeline(steps=num_steps), num_cols))
     if cat_cols:
         cat_steps = []
         cat_steps.append(("imputer", SimpleImputer(strategy="most_frequent")))
-        cat_steps.append(("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)))
+        cat_steps.append(("ordinal", OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)))
         transformers.append(("categorical", Pipeline(steps=cat_steps), cat_cols))
 
     preprocessor = ColumnTransformer(transformers=transformers, remainder="drop", sparse_threshold=0)
