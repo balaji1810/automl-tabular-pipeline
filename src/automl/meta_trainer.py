@@ -14,27 +14,8 @@ from sklearn.preprocessing import StandardScaler
 from automl.algorithms import algorithms
 import openml
 from scipy.stats import spearmanr
-import joblib
 
 import argparse
-import warnings
-import logging
-import os
-
-# Suppress LightGBM warnings
-warnings.filterwarnings("ignore", category=UserWarning, module="lightgbm")
-warnings.filterwarnings("ignore", message=".*LightGBM.*")
-warnings.filterwarnings("ignore", message=".*No further splits.*")
-warnings.filterwarnings("ignore", message=".*Stopped training.*")
-os.environ['LIGHTGBM_VERBOSITY'] = '-1'  # Suppress LightGBM verbose output
-
-# Suppress other common ML warnings
-warnings.filterwarnings("ignore", category=FutureWarning)
-warnings.filterwarnings("ignore", category=RuntimeWarning)
-
-# Additional LightGBM suppression
-import logging
-logging.getLogger("lightgbm").setLevel(logging.ERROR)
 
 
 predict_split_flag = False  # Flag to control whether to split predictions or not
@@ -59,24 +40,20 @@ class MultiHeadRankingNetwork(nn.Module):
         
         # Shared Feature Extractor
         self.shared_layers = nn.Sequential(
-            nn.Linear(input_size, 64), # TODO: changed from 128 to 64
-            nn.LayerNorm(64),  # Changed from BatchNorm1d to LayerNorm to handle small batches
+            nn.Linear(input_size, 64),
+            nn.LayerNorm(64),  
             nn.ReLU(),
             nn.Dropout(dropout),
             
-            nn.Linear(64, 24), # TODO: changed from 64 to 24
-            nn.LayerNorm(24),  # Changed from BatchNorm1d to LayerNorm to handle small batches
+            nn.Linear(64, 24), 
+            nn.LayerNorm(24),  
             nn.ReLU(),
             nn.Dropout(dropout),
-            
-            # nn.Linear(64, 32), # TODO: commenting out to reduce complexity
-            # nn.BatchNorm1d(32),
-            # nn.ReLU()
         )
         
         # Algorithm-Specific Heads (one per algorithm)
         self.algorithm_heads = nn.ModuleList([
-            nn.Linear(24, 1) for _ in range(num_algorithms) # TODO: Reduced from 32->1 to 24->1
+            nn.Linear(24, 1) for _ in range(num_algorithms)
         ])
         
         # Initialize weights
@@ -220,8 +197,7 @@ def train_meta_model(dataset_df: pd.DataFrame,
     
     # Create data loaders
     train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-    # train_loader = DataLoader(train_dataset, batch_size=min(32, len(X_train)//2 + 1), shuffle=True)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)  # TODO: changed from 32 to 64 for better convergence
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     
     # Initialize model
     input_size = X_train.shape[1]
@@ -231,14 +207,14 @@ def train_meta_model(dataset_df: pd.DataFrame,
     model = MultiHeadRankingNetwork(input_size, num_algorithms).to(device)
     
     # Optimizer and scheduler
-    optimizer = optim.AdamW(model.parameters(), lr=0.005, weight_decay=0.15) # TODO: changed weight_decay from 0.01 to 0.15 and learning rate from 0.001 to 0.005
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=15, factor=0.7) # TODO: changed patience from 20 to 15 and factor from 0.5 to 0.7
+    optimizer = optim.AdamW(model.parameters(), lr=0.005, weight_decay=0.15) 
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=15, factor=0.7)
     
     # Training loop
     model.train()
     best_loss = float('inf')
     patience_counter = 0
-    max_patience = 50 # TODO: changed this from 100 to 50 for stronger early stopping
+    max_patience = 50 
     train_losses = []
     
     print("Starting training...")
@@ -306,12 +282,12 @@ def train_meta_model(dataset_df: pd.DataFrame,
         
         for i in range(len(y_train)):
             corr, _ = spearmanr(y_train[i], train_predicted_ranks[i])
-            if not np.isnan(corr):
+            if not np.isnan(corr): # type: ignore
                 train_correlations.append(corr)
         
         for i in range(len(y_test)):
             corr, _ = spearmanr(y_test[i], test_predicted_ranks[i])
-            if not np.isnan(corr):
+            if not np.isnan(corr): # type: ignore
                 test_correlations.append(corr)
         
         avg_train_corr = np.mean(train_correlations) if train_correlations else 0
@@ -402,15 +378,6 @@ def load_ranking_meta_model(model_path: str):
 
     model.to(device)
     model.eval()
-    
-    # print(f"Loaded Multi-Head Ranking Network:")
-    # print(f"  Model type: {checkpoint['metadata']['model_type']}")
-    # print(f"  Input size: {arch['input_size']}")
-    # print(f"  Number of algorithms: {arch['num_algorithms']}")
-    # print(f"  Number of features: {checkpoint['metadata']['num_features']}")
-    # print(f"  Test Spearman correlation: {checkpoint['training_info']['test_spearman_corr']:.4f}")
-    # print(f"  Test Top-1 accuracy: {checkpoint['training_info']['test_top1_accuracy']:.4f}")
-    # print(f"  Number of datasets: {checkpoint['metadata']['num_datasets']}")
     
     return model, checkpoint
 
@@ -602,9 +569,9 @@ def algorithms_eval(algorithms: list, datasets: list):
 
     for i, ds in enumerate(datasets):
         dataset_id = ds["dataset_id"]
-        print(f"→ Processing dataset {i+1}/{len(datasets)} (ID: {dataset_id})")
+        
         X, y = ds["X"], ds["y"]
-        print(f"   • Dataset shape: {X.shape}, target shape: {y.shape}")
+        
 
         # Check if target is numeric
         if not pd.api.types.is_numeric_dtype(y):
@@ -616,17 +583,17 @@ def algorithms_eval(algorithms: list, datasets: list):
             X, y, test_size=0.3, random_state=42
         )
 
-        print(f"   • Train shape: {X_train.head()}, Test shape: {X_test.head()}")
+        
         
         # Build preprocessor on all data (to avoid leakage, you can fit only on train)
         from automl.pre_processor_old import build_preprocessor
         preprocessor = build_preprocessor(X)
-        print("============= Preprocessor built inside meta_trainer.py =============")
+        
         # 1) extract meta-features
-        from meta_features import extract_meta_features_pymfe
-        meta = extract_meta_features_pymfe(X, y)
+        from meta_features import extract_meta_features
+        meta = extract_meta_features(X, y)
 
-        print("============== Meta-features extracted ==============")
+        
 
         # 2) evaluate each algorithm
         scores = {}
@@ -667,18 +634,6 @@ def algorithms_eval(algorithms: list, datasets: list):
     df = pd.DataFrame(records)
     df.to_csv("meta_Y.csv", index=False)
     
-    # # Save updated failing datasets list
-    # failing_df = pd.DataFrame({'failing_dataset_ids': failing_datasets})
-    # failing_df.to_csv("failing_datasets_list.csv", index=False)
-    
-    # print(f"\nDataset Processing Summary:")
-    # print(f"• Total datasets attempted: {len(datasets)}")
-    # print(f"• Successfully processed: {len(records)}")
-    # print(f"• Failed to process: {len(datasets) - len(records)}")
-    # print(f"• Success rate: {len(records)/len(datasets)*100:.1f}%")
-    # print(f"• Updated failing datasets list saved to: failing_datasets_list.csv")
-    # print(f"• Total failing datasets: {len(failing_datasets)}")
-    
     return records
     
 
@@ -691,6 +646,7 @@ def main():
     print(f"Split flag set to: {predict_split_flag}")
     # Example usage of the meta-learning pipeline
     
+    # Uncomment the following lines to generate a new meta-learning dataset
     # # Step 1: Generate meta-learning dataset
     # openml_datasets = load_openml_datasets(
     #         NumberOfFeatures=(10, 1025),
@@ -705,33 +661,26 @@ def main():
     # fetch records from meta_features_gputested.csv
 
     import pandas as pd
-    records = pd.read_csv("src/automl/meta_features_180.csv").to_dict(orient='records')
-    print(f"Loaded {len(records)} records from meta_features_180.csv")
+    records = pd.read_csv("src/automl/meta_features_dataset.csv").to_dict(orient='records')
     records = pd.DataFrame(records) 
     
     # Step 2: Train meta-model (if we have enough data)
     if len(records) > 0:
         meta_df = pd.DataFrame(records)
-        print(f"\nMeta-learning dataset shape: {meta_df.shape}")
-        print(f"Columns: {list(meta_df.columns)}")
+
         
         # Train meta-model
-        print("\n" + "="*50)
-        print("TRAINING META-MODEL")
-        print("="*50)
+
         if predict_split_flag:
-            print("Using split predictions for meta-model training")
+            
             # Split predictions into train/test sets
             train_df, test_df = train_test_split(meta_df, test_size=0.2, random_state=42)
             model_package = train_meta_model(train_df, save_path=args.model_path)
         else:
-            print("Using full predictions for meta-model training")
+            
             model_package = train_meta_model(meta_df, save_path=args.model_path)
         
         # Step 3: Load model and make predictions
-        print("\n" + "="*50)
-        print("LOADING AND TESTING META-MODEL")
-        print("="*50)
         
         # Load the model
         models, checkpoint = load_ranking_meta_model(args.model_path)
@@ -749,40 +698,8 @@ def main():
 
         predictions = predict_algorithm_rankings(models, checkpoint, test_meta_features, test_actual_rankings)
         
-        # print(f"\nPredictions for {len(test_meta_features)} datasets:")
-        # print(predictions)
-
-        
     else:
         print("No datasets processed successfully. Cannot train meta-model.")
-    
-    # Example of how to use the model for new datasets:
-    # print("\n" + "="*50)
-    # print("EXAMPLE: Using meta-model for new dataset")
-    # print("="*50)
-    # print("""
-    # # To use the trained model for algorithm selection on a new dataset:
-    
-    # # 1. Extract meta-features from your new dataset
-    # from automl.meta_features import extract_meta_features
-    # meta_features = extract_meta_features(X_new, y_new)
-    # meta_features_df = pd.DataFrame([meta_features])
-    
-    # # 2. Load the trained XGBoost model
-    # models, checkpoint = load_ranking_meta_model('meta_model.pth')
-    
-    # # 3. Predict algorithm rankings
-    # predictions = predict_algorithm_rankings(models, checkpoint, meta_features_df)
-    
-    # # 4. Get the recommended algorithm
-    # best_algorithm = predictions['recommended_algorithm'].iloc[0]
-    # print(f"Recommended algorithm: {best_algorithm}")
-    
-    # # 5. Get full ranking
-    # ranking_cols = [col for col in predictions.columns if col.endswith('_predicted_rank')]
-    # full_ranking = predictions[ranking_cols].iloc[0].sort_values()
-    # print(f"Full algorithm ranking: {full_ranking}")
-    # """)
         
 
 if __name__ == "__main__":

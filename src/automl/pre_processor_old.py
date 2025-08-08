@@ -15,11 +15,6 @@ def detect_column_types(X: pd.DataFrame) -> tuple[list[str], list[str]]:
     # A simple heuristic: dtype kind
     num_cols = X.select_dtypes(include=["number"]).columns.tolist()
     cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
-    # Also treat low-cardinality ints as categorical
-    # for col in X.select_dtypes(include=["int"]):
-    #     if X[col].nunique() < 20 and col not in cat_cols:
-    #         cat_cols.append(col)
-    #         num_cols.remove(col)
     return num_cols, cat_cols
 
 

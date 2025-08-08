@@ -1,5 +1,0 @@
-,BayesianRidge_actual_rank,BayesianRidge,LinearRegression_actual_rank,LinearRegression,TabPFNRegressor_actual_rank,TabPFNRegressor,SVR_actual_rank,SVR,RandomForestRegressor_actual_rank,RandomForestRegressor,MLPRegressor_actual_rank,MLPRegressor,HistGradientBoostingRegressor_actual_rank,HistGradientBoostingRegressor,XGBRegressor_actual_rank,XGBRegressor,LGBMRegressor_actual_rank,LGBMRegressor,GradientBoostingRegressor_actual_rank,GradientBoostingRegressor,DecisionTreeRegressor_actual_rank,DecisionTreeRegressor,actual_best_algorithm,recommended_algorithm
-0,1,2,2,1,3,6,4,8,5,3,6,11,7,7,8,9,9,5,10,4,11,10,BayesianRidge,LinearRegression
-17,9,6,1,5,3,7,10,8,5,3,11,4,7,2,6,1,8,9,4,11,2,10,LinearRegression,XGBRegressor
-15,2,6,9,5,3,7,1,8,4,3,6,4,11,2,5,1,10,9,8,11,7,10,SVR,XGBRegressor
-1,8,3,9,1,1,2,10,10,2,6,11,11,6,4,4,8,5,7,3,5,7,9,TabPFNRegressor,LinearRegression

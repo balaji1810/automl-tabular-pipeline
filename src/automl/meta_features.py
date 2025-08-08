@@ -55,9 +55,6 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
     """Compute meta-features for regression datasets."""
     # Store original dimensions before preprocessing
     n, d = X.shape
-    # print("=========== Extracting meta-features ===========")
-    # print(" X Type:", type(X), "Shape:", X.shape)
-    # print(" y Type:", type(y), "Shape:", y.shape)
     # Ensure X is a DataFrame
     if not isinstance(X, pd.DataFrame):
         raise ValueError("X must be a pandas DataFrame")
@@ -66,25 +63,17 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
     
     # CRITICAL: Convert sparse target to dense if needed
     if hasattr(y, 'sparse') or str(y.dtype).startswith('Sparse'):
-        # print(" • Converting sparse target y to dense")
         y = y.sparse.to_dense() if hasattr(y, 'sparse') else pd.Series(y.values, dtype=float)
     # Preprocess the data in X first
     try:
-        # print("Building preprocessor...")
         preprocessor = build_preprocessor(X)
-        # print("Fitting preprocessor...")
-        # print("X_processed shape before :", X.shape)
-        # print("Type of X:", type(X))
         try:
             preprocessor.set_output(transform="default")  # Force numpy output
         except AttributeError:
             pass  # Some transformers don't have set_output method
-        # ADDITIONAL FIX: Handle the ColumnTransformer's sparse_threshold
         if hasattr(preprocessor, 'sparse_threshold'):
             preprocessor.sparse_threshold = 0  # Force dense output
-            # print(" • Set sparse_threshold=0 to force dense output")
         if hasattr(preprocessor, 'transformers'):
-            # print(" • Configuring ColumnTransformer components...")
             for name, transformer, columns in preprocessor.transformers:
                 # Handle Pipeline transformers
                 if hasattr(transformer, 'steps'):
@@ -109,54 +98,31 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
         
         X_processed = preprocessor.fit_transform(X)
         
-        # print(f" • Preprocessor output type: {type(X_processed)}")
-        # print(f" • Preprocessor output shape: {X_processed.shape}")
-        # print(f" • Is sparse matrix?: {sparse.issparse(X_processed)}")
-        
     except Exception as e:
-        print(f"Error during preprocessing: {e}")
         raise ValueError("Preprocessing failed. Check your data format and types.")
     
     # Convert sparse matrix to dense if needed
     if sparse.issparse(X_processed):
-        # print(" • Converting sparse matrix to dense for meta-features extraction")
         X_processed = X_processed.toarray()
-        # print(f" • After toarray(): type={type(X_processed)}, shape={X_processed.shape}")
     
-    # CRITICAL: Convert to proper DataFrame for consistent handling
     if isinstance(X_processed, np.ndarray):
-        # print(" • Converting numpy array to DataFrame")
         X_processed = pd.DataFrame(X_processed)
     elif hasattr(X_processed, 'sparse'):
-        # print(" • Converting sparse DataFrame to dense DataFrame")
-        # Handle pandas sparse DataFrame
         X_processed = X_processed.sparse.to_dense()
-    
-    # print(f" • Final X_processed type: {type(X_processed)}")
-    # print(f" • Final X_processed shape: {X_processed.shape}")
-    
-    # Additional safety check for sparse columns
+
     if isinstance(X_processed, pd.DataFrame):
         for col in X_processed.columns:
             if hasattr(X_processed[col], 'sparse'):
-                # print(f" • Converting sparse column {col} to dense")
                 X_processed[col] = X_processed[col].sparse.to_dense()
 
-    # if hasattr(X_processed, 'toarray'):  # Check if it's a sparse matrix
-    #     print(" sparse matrix detected")
-    
-    # Get dimensions after preprocessing
-    # n, d = X_processed.shape
     
     # Basic sizes (using both original and processed dimensions)
     meta_features = {
         "n_samples": n,
         "n_features": d,
-        # "n_features_processed": d,
         "log_n_samples": np.log(n + 1) if n > 0 else 0.0,
         "log_n_features": np.log(d + 1) if d > 0 else 0.0,
         "feature_ratio": d / n if n else 0.0,
-        # "feature_expansion_ratio": d / d if d > 0 else 1.0,
     }
     
     # Target statistics with sparse handling
@@ -175,7 +141,6 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
             "target_kurtosis": float(kurtosis(y_values)) if len(y_values) else 0.0,
         })
     except Exception as target_error:
-        # print(f" • ERROR computing target statistics: {target_error}")
         meta_features.update({
             "target_mean": 0.0,
             "target_std": 0.0,
@@ -184,9 +149,7 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
         })
 
     # Work with processed data (should all be numeric now)
-    # print(" • Step: Computing feature statistics...")
     X_num = X_processed
-    # print(f" • X_num type: {type(X_num)}, shape: {X_num.shape}")
     
     # Check if any columns are still sparse
     if isinstance(X_num, pd.DataFrame):
@@ -195,13 +158,10 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
             if hasattr(X_num[col], 'sparse') or str(X_num[col].dtype).startswith('Sparse'):
                 sparse_columns.append(col)
         if sparse_columns:
-            # print(f" • Found sparse columns: {sparse_columns}")
             for col in sparse_columns:
                 X_num[col] = X_num[col].sparse.to_dense() if hasattr(X_num[col], 'sparse') else pd.array(X_num[col], dtype=float)
     
     if X_num.shape[1] == 0: 
-        # print(" • No features after preprocessing, using default values")
-        # no numeric features → fill zeros
         meta_features.update({
             "mean_feature_skew": 0.0,
             "mean_feature_kurtosis": 0.0,
@@ -212,12 +172,10 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
         
     else:
         try:
-            # print(" • Computing feature skew/kurtosis...")
             # Ensure all columns are dense before statistical operations
             if isinstance(X_num, pd.DataFrame):
                 for col in X_num.columns:
                     if hasattr(X_num[col], 'sparse') or str(X_num[col].dtype).startswith('Sparse'):
-                        # print(f" • Converting remaining sparse column {col} to dense")
                         X_num[col] = X_num[col].sparse.to_dense() if hasattr(X_num[col], 'sparse') else pd.array(X_num[col].values, dtype=float)
             
             # 1) Per-feature mean skew/kurtosis
@@ -230,14 +188,8 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
             
             meta_features["mean_feature_skew"]     = float(skew(means))
             meta_features["mean_feature_kurtosis"] = float(kurtosis(means))
-            # print(f" • ✓ Feature statistics computed")
 
-            # 2) Zero-variance percentage
-            # zero_var = (X_num.var(axis=0) == 0).sum()
-            # meta_features["zero_var_pct"] = float(zero_var / X_num.shape[1])
-
-            # 3) Pairwise correlations (only if >1 numeric column)
-            # print(f" • Computing correlations for {X_num.shape[1]} features...")
+            # 2) Pairwise correlations (only if >1 numeric column)
             if X_num.shape[1] > 1:
                 # Force conversion to float64 dense DataFrame for correlation computation
                 X_corr = X_num.astype(float) if isinstance(X_num, pd.DataFrame) else pd.DataFrame(X_num, dtype=float)
@@ -247,16 +199,11 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
                 tri_vals = corr.values[iu]
                 meta_features["mean_abs_corr"] = float(np.nanmean(tri_vals))
                 meta_features["max_abs_corr"]  = float(np.nanmax(tri_vals))
-                # print(f" • ✓ Correlations computed")
             else:
                 meta_features["mean_abs_corr"] = 0.0
                 meta_features["max_abs_corr"]  = 0.0
-                print(" • Only 1 feature, correlations set to 0")
                 
         except Exception as stat_error:
-            # print(f" • ERROR computing feature statistics: {stat_error}")
-            # print(f" • X_num dtypes: {X_num.dtypes if isinstance(X_num, pd.DataFrame) else 'Not DataFrame'}")
-            # Fallback to default values
             meta_features.update({
                 "mean_feature_skew": 0.0,
                 "mean_feature_kurtosis": 0.0,
@@ -264,7 +211,7 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
                 "max_abs_corr": 0.0,
             })
 
-    # 4) Probing Features
+    # 3) Probing Features
     
     # Split data
     X_train, X_test, y_train, y_test = train_test_split(X_processed, y, test_size=0.3, random_state=42)
@@ -272,23 +219,16 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
     # Ensure we work with dense arrays for meta-feature computation
     X_train_processed = _to_dense_array(X_train)
     X_test_processed = _to_dense_array(X_test)
-
-    # print(" X_train Type:", type(X_train_processed), "Shape:", X_train_processed.shape)
-    # print(" X_test Type:", type(X_test_processed), "Shape:", X_test_processed.shape)
-
-    # print(" =============== meta features evaluation =============== ")
     sample_fraction = 0.01  # 1% sample for probing
 
-    # print("Evaluating dummy regressor")
-    # 4.1) Mean value predictor performance (baseline)
+    # Mean value predictor performance (baseline)
     dummy_mean = DummyRegressor(strategy='mean')
     dummy_mean.fit(X_train_processed, y_train)
     y_pred_mean = dummy_mean.predict(X_test_processed)
     
     meta_features['mean_predictor_r2'] = r2_score(y_test, y_pred_mean)
     
-    # print("evaluating decision stump ")
-    # 4.2) Decision stump performance (depth=1 tree)
+    # Decision stump performance (depth=1 tree)
     stump = DecisionTreeRegressor(max_depth=1, random_state=42)
     try:
         stump.fit(X_train_processed, y_train)
@@ -296,29 +236,17 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
 
         meta_features['decision_stump_r2'] = r2_score(y_test, y_pred_stump)
     except Exception as e:
-        # print(f"Error evaluating decision stump: {e}")
-        # Use mean predictor performance as fallback (decision stump should at least match dummy)
         meta_features['decision_stump_r2'] = meta_features['mean_predictor_r2']
-    # # Relative improvement over mean predictor
-    # meta_features['stump_vs_mean_r2_ratio'] = (
-    #     meta_features['decision_stump_r2'] / max(meta_features['mean_predictor_r2'], 1e-10)
-    # )
-    
-    # print("evaluating simple rule model ")
-    # 4.3) Simple rule model performance (linear regression)
+
+    # Simple rule model performance (linear regression)
     simple_rule = LinearRegression()
     simple_rule.fit(X_train_processed, y_train)
     y_pred_rule = simple_rule.predict(X_test_processed)
 
     meta_features['simple_rule_r2'] = r2_score(y_test, y_pred_rule)
         
-    # # Relative improvement over mean predictor
-    # meta_features['rule_vs_mean_r2_ratio'] = (
-    #     meta_features['simple_rule_r2'] / max(meta_features['mean_predictor_r2'], 1e-10)
-    # )
     
-    # print("evaluating algorithms on 1% sample ")
-    # 4.4) Performance of algorithms on 1% of data
+    # Performance of algorithms on 1% of data
     if X_train_processed.shape[0] > 100:  # Only if we have enough data
         # Sample 1% of training data
         sample_size = max(int(X_train_processed.shape[0] * sample_fraction), 10)
@@ -344,24 +272,9 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
                 
                 meta_features[f'{algo_name}_1pct_r2'] = algo_r2
                 
-                # # Relative performance vs baselines
-                # meta_features[f'{algo_name}_vs_mean_r2_ratio'] = (
-                #     algo_r2 / max(meta_features['mean_predictor_r2'], 1e-10)
-                # )
-                # meta_features[f'{algo_name}_vs_stump_r2_ratio'] = (
-                #     algo_r2 / max(meta_features['decision_stump_r2'], 1e-10)
-                # )
-                
             except Exception as e:
-                # print(f"========= Error evaluating {algo_name} on 1% data: {e} ========== ")
                 meta_features[f'{algo_name}_1pct_r2'] = -1.0
                 meta_features[f'{algo_name}_1pct_rmse'] = float('inf')
-                # meta_features[f'{algo_name}_vs_mean_r2_ratio'] = 0.0
-                # meta_features[f'{algo_name}_vs_stump_r2_ratio'] = 0.0
-    
-    # 4.5) Additional derived meta-features
-    # meta_features['baseline_difficulty'] = 1 - meta_features['mean_predictor_r2']
-    # meta_features['linear_separability'] = meta_features['simple_rule_r2']
     meta_features['tree_advantage'] = (
         meta_features['decision_stump_r2'] - meta_features['simple_rule_r2']
     )
@@ -373,88 +286,3 @@ def extract_meta_features(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
                                             meta_features['target_skew'] < 2) else 0
 
     return meta_features
-
-
-def extract_meta_features_pymfe(X: pd.DataFrame, y: pd.Series | pd.DataFrame) -> dict:
-    """Extract meta-features using PyMFE package for regression datasets."""
-    print("=========== Extracting meta-features using PyMFE ===========")
-    print(" X Type:", type(X), "Shape:", X.shape)
-    print(" y Type:", type(y), "Shape:", y.shape)
-    
-    # Ensure X is a DataFrame and y is a Series
-    if not isinstance(X, pd.DataFrame):
-        raise ValueError("X must be a pandas DataFrame")
-    if not isinstance(y, pd.Series):
-        if isinstance(y, pd.DataFrame):
-            y = y.iloc[:, 0] if y.shape[1] == 1 else y.iloc[:, 0]
-        else:
-            y = pd.Series(y)
-    
-    # Convert to numpy arrays for PyMFE (it works better with numpy)
-    X_numpy = X.values
-    y_numpy = y.values
-    
-    # Handle any remaining NaN values
-    if pd.isna(X_numpy).any() or pd.isna(y_numpy).any():
-        print(" • Cleaning NaN values for PyMFE...")
-        # Simple imputation for PyMFE
-        from sklearn.impute import SimpleImputer
-        imputer = SimpleImputer(strategy='median')
-        X_numpy = imputer.fit_transform(X_numpy)
-        
-        # For target, use median imputation
-        if pd.isna(y_numpy).any():
-            y_numpy = pd.Series(y_numpy).fillna(pd.Series(y_numpy).median()).values
-    
-    try:
-        # Initialize MFE for regression
-        mfe = MFE(groups=["general", "statistical", "model-based"], 
-                  features=["attr_to_inst", "cat_to_num", "freq_class", "inst_to_attr",
-                           "nr_attr", "nr_bin", "nr_class", "nr_inst", "nr_num",
-                           "can_cor", "cor", "cov", "eigenvalues", "g_mean", "gravity",
-                           "h_mean", "iq_range", "kurtosis", "lh_trace", "mad", "max",
-                           "mean", "median", "min", "nr_cor_attr", "nr_disc", "nr_norm",
-                           "nr_outliers", "range", "roy_root", "sd", "sd_ratio", "skewness",
-                           "sparsity", "t_mean", "var", "w_lambda",
-                           "best_node", "elite_nn", "linear_discr", "naive_bayes",
-                           "one_nn", "random_node", "worst_node"],
-                  random_state=42)
-        
-        print(" • Fitting PyMFE extractor...")
-        mfe.fit(X_numpy, y_numpy)
-        
-        print(" • Extracting meta-features...")
-        ft_names, ft_values = mfe.extract()
-        
-        # Convert to dictionary
-        meta_features = {}
-        for name, value in zip(ft_names, ft_values):
-            # Handle potential None or invalid values
-            if value is None or not np.isfinite(value):
-                meta_features[name] = 0.0
-            else:
-                meta_features[name] = float(value)
-        
-        print(f" • Extracted {len(meta_features)} meta-features successfully")
-        
-        return meta_features
-        
-    except Exception as e:
-        print(f" • Error with PyMFE extraction: {e}")
-        print(" • Falling back to basic meta-features...")
-        
-        # Fallback to basic meta-features if PyMFE fails
-        n, d = X.shape
-        basic_features = {
-            "n_samples": n,
-            "n_features": d,
-            "log_n_samples": np.log(n + 1),
-            "log_n_features": np.log(d + 1),
-            "feature_ratio": d / n if n > 0 else 0.0,
-            "target_mean": float(np.mean(y_numpy)),
-            "target_std": float(np.std(y_numpy)),
-            "target_skew": float(skew(y_numpy)),
-            "target_kurtosis": float(kurtosis(y_numpy)),
-        }
-        
-        return basic_features

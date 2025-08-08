@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 import logging
 
-from .UniversalPreprocessor import build_universal_preprocessor
+from automl.CustomPreprocessor import build_custom_preprocessor
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,6 @@ def build_algorithm_aware_preprocessor(
     logger.info(f"Auto-selected preprocessing strategy: {strategy} for algorithms: {algorithm_name}")
 
     # Use the universal preprocessor with the determined strategy
-    preprocessor = build_universal_preprocessor(X, preprocessing_strategy=strategy)
+    preprocessor = build_custom_preprocessor(X, preprocessing_strategy=strategy)
 
     return preprocessor

@@ -270,7 +270,7 @@ def fetch_params(trial: optuna.Trial, model_name: str) -> dict:
         "BayesianRidge": BayesianRidgeParams,
         "DecisionTreeRegressor": DecisionTreeRegressorParams,
         "SVR": SVRParam,
-        "TabPFN": TabPFNParams
+        "TabPFNRegressor": TabPFNParams
     }
 
     if model_name not in model_params_map:

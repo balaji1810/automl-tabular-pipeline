@@ -1,11 +1,3 @@
-"""An example run file which loads in a dataset from its files
-and logs the R^2 score on the test set.
-
-In the example data you are given access to the y_test, however
-in the test dataset we will provide later, you will not have access
-to this and you will need to output your predictions for X_test
-to a file, which we will grade using github classrooms!
-"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -19,7 +11,7 @@ current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir / "src"))
 
 from automl.data import Dataset
-from automl.automl_pipeline import AutoML
+from automl.AutoMLPipeline import AutoML
 import argparse
 
 import logging
@@ -48,9 +40,6 @@ def main(
     automl.fit(dataset.X_train, dataset.y_train)
     test_preds: np.ndarray | tuple[np.ndarray, np.ndarray] = automl.predict(dataset.X_test)
 
-    # Write the predictions of X_test to disk
-    # This will be used by github classrooms to get a performance
-    # on the test set.
     logger.info("Writing predictions to disk")
     with output_path.open("wb") as f:
         np.save(f, test_preds)
@@ -59,7 +48,6 @@ def main(
         r2_test = r2_score(dataset.y_test, test_preds)
         logger.info(f"R^2 on test set: {r2_test}")
     else:
-        # This is the setting for the exam dataset, you will not have access to y_test
         logger.info(f"No test set for task '{task}'")
 
 
@@ -72,12 +60,12 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="The name of the task to run on.",
-        choices=["bike_sharing_demand", "brazilian_houses", "superconductivity", "wine_quality", "yprop_4_1"]
+        choices=["bike_sharing_demand", "brazilian_houses", "superconductivity", "wine_quality", "yprop_4_1", "exam_dataset"]
     )
     parser.add_argument(
         "--output-path",
         type=Path,
-        default=Path("data/bike_sharing_demand/1/predictions.npy"),
+        default=Path("data/brazilian_houses/predictions.npy"),
         help=(
             "The path to save the predictions to."
             " By default this will just save to './predictions.npy'."
@@ -96,7 +84,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--seed",
         type=int,
-        default=42,
+        default=10,
         help=(
             "Random seed for reproducibility if you are using and randomness,"
             " i.e. torch, numpy, pandas, sklearn, etc."
@@ -105,8 +93,8 @@ if __name__ == "__main__":
     
     parser.add_argument(
         "--timeout",
-        type=int,
-        default=60,
+        type=float,
+        default=60.0,
         help=(
             "Set optimization timeout"
             " i.e. 60 = 60 seconds"

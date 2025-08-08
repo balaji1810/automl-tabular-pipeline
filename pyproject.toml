@@ -2,11 +2,11 @@
 name = "automl"
 license = { file = "LICENSE" }
 version = "0.1.0"
-dependencies = ["scikit-learn", "openml", "pandas", "numpy<2.0", "IPython", "neural-pipeline-search", "xgboost", "lightgbm", "matplotlib", "optuna", "botorch"]
+dependencies = ["scikit-learn", "openml", "pandas", "numpy", "IPython", "xgboost", "lightgbm", "optuna", "torch", "torchvision", "tabpfn"]
 requires-python = ">=3.10"
-authors = [{ name = "Balaji S B", email = "balajibavimane@gmail.com" }, { name = "Surbhi Nair", email = "user@user.com" }, { name = "Kenjiro Ono", email = "user@user.com" }]
+authors = [{ name = "Balaji S B", email = "balajibavimane@gmail.com" }, { name = "Surbhi Nair", email = "surbhinair99@gmail.com" }, { name = "Kenjiro Ono", email = "ono.kenjirou@gmail.com" }]
 readme = "README.md"
-description = "AutoML - Tabular"
+description = "AutoML is a Python package that provides an easy-to-use interface for automating machine learning tasks, including model selection, hyperparameter tuning, and evaluation. It supports various algorithms and integrates with popular libraries like scikit-learn, XGBoost, and LightGBM."
 classifiers = [
   'Intended Audience :: Science/Research',
   'Intended Audience :: Developers',

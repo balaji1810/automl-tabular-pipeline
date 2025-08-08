@@ -4,7 +4,9 @@ from optuna.samplers import TPESampler
 import pandas as pd
 from sklearn.pipeline import Pipeline
 from automl.param import fetch_params
+import logging
 
+logger = logging.getLogger(__name__)
 
 def hyperparam_search_optuna(
     pipeline: Pipeline,
@@ -13,7 +15,7 @@ def hyperparam_search_optuna(
     X_val: pd.DataFrame,
     y_val: pd.Series,
     model_name: str,
-    timeout: int
+    timeout: float
 ) -> Pipeline:
     """
     Run a optimization to maximize `scoring` over sklearn Pipeline.
@@ -32,6 +34,7 @@ def hyperparam_search_optuna(
         direction="maximize",
         sampler=TPESampler()
     )
+    logger.info(f"======================== {model_name} will be evaluated for {timeout} seconds =========================================")
     study.optimize(lambda trials: objective(trials, model_name), timeout=timeout)
 
     best_params = study.best_trial.params

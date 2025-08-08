@@ -9,8 +9,8 @@ from tabpfn import TabPFNRegressor
 
 
 algorithms = [
-    LGBMRegressor(n_jobs=-1),
-    XGBRegressor(enable_categorical = True, n_jobs = -1),
+    LGBMRegressor(n_jobs=-1, device="gpu"),
+    XGBRegressor(enable_categorical = True, n_jobs = -1, device="cuda"),
     RandomForestRegressor(n_jobs=-1),
     DecisionTreeRegressor(),
     HistGradientBoostingRegressor(),
@@ -20,7 +20,6 @@ algorithms = [
     LinearRegression(),
     SVR(),
     TabPFNRegressor(n_jobs=-1, device="auto")
-    # device="cuda" if torch.cuda.is_available() else "cpu",
 ]
 
 algorithms_dict = {algo.__class__.__name__: algo for algo in algorithms}

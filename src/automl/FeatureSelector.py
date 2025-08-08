@@ -40,7 +40,6 @@ class FeatureSelector:
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=self.seed)
 
         reg1 = RandomForestRegressor(random_state=self.seed, n_jobs=-1)
-        # reg1.fit(X_train, y_train)
         num_features = floor(len(X_train.columns) * self.max_features)
 
         if self.select_method == "tree":

@@ -1,5 +1,5 @@
 """
-Universal Preprocessing Methods for Both Tree-Based and Other ML Algorithms
+Custom Preprocessing Methods for Both Tree-Based and Other ML Algorithms
 
 This module provides preprocessing strategies that work well across different algorithm types:
 - Tree-based: RandomForest, XGBoost, LightGBM, DecisionTree
@@ -81,7 +81,7 @@ def detect_column_types_enhanced(X: pd.DataFrame) -> dict:
     return column_info
 
 
-class UniversalImputer(BaseEstimator, TransformerMixin):
+class CustomImputer(BaseEstimator, TransformerMixin):
     """
     Intelligent imputation that works well for all algorithm types.
     """
@@ -186,7 +186,7 @@ class UniversalImputer(BaseEstimator, TransformerMixin):
         return X_imputed
 
 
-class UniversalScaler(BaseEstimator, TransformerMixin):
+class CustomScaler(BaseEstimator, TransformerMixin):
     """
     Scaling strategy that benefits both tree-based and other algorithms.
     """
@@ -288,7 +288,7 @@ class UniversalScaler(BaseEstimator, TransformerMixin):
         }
 
 
-class UniversalEncoder(BaseEstimator, TransformerMixin):
+class CustomEncoder(BaseEstimator, TransformerMixin):
     """
     Categorical encoding that works well for all algorithm types.
     """
@@ -437,73 +437,7 @@ class UniversalEncoder(BaseEstimator, TransformerMixin):
         
         return X_encoded
 
-
-class FeatureEngineer(BaseEstimator, TransformerMixin):
-    """
-    Feature engineering that benefits all algorithm types.
-    """
-    
-    def __init__(self, create_interactions=True, create_polynomials=False, 
-                 polynomial_degree=2, max_interaction_features=50):
-        self.create_interactions = create_interactions
-        self.create_polynomials = create_polynomials
-        self.polynomial_degree = polynomial_degree
-        self.max_interaction_features = max_interaction_features
-        self.interaction_features_ = []
-    
-    def set_output(self, *, transform=None):
-        """Set output container - compatibility with sklearn's ColumnTransformer."""
-        return self
-    
-    def fit(self, X, y=None):
-        column_info = detect_column_types_enhanced(X)
-        numeric_cols = (column_info['numeric_continuous'] + 
-                       column_info['numeric_discrete'])
-        
-        self.numeric_cols_ = numeric_cols[:10]  # Limit to prevent explosion
-        
-        if self.create_interactions and len(self.numeric_cols_) > 1:
-            # Create pairwise interactions for top features by variance
-            if len(self.numeric_cols_) > 5:
-                # Select top features by variance
-                variances = X[self.numeric_cols_].var().sort_values(ascending=False)
-                top_features = variances.head(5).index.tolist()
-            else:
-                top_features = self.numeric_cols_
-            
-            # Create interaction pairs
-            for i, col1 in enumerate(top_features):
-                for col2 in top_features[i+1:]:
-                    interaction_name = f"{col1}_x_{col2}"
-                    self.interaction_features_.append((col1, col2, interaction_name))
-                    
-                    if len(self.interaction_features_) >= self.max_interaction_features:
-                        break
-                if len(self.interaction_features_) >= self.max_interaction_features:
-                    break
-        
-        return self
-    
-    def transform(self, X):
-        X_engineered = X.copy()
-        
-        # Create interaction features
-        for col1, col2, interaction_name in self.interaction_features_:
-            if col1 in X.columns and col2 in X.columns:
-                X_engineered[interaction_name] = X[col1] * X[col2]
-        
-        # Create polynomial features (be careful - can explode feature space)
-        if self.create_polynomials and hasattr(self, 'numeric_cols_'):
-            for col in self.numeric_cols_[:3]:  # Only for top 3 features
-                if col in X.columns:
-                    for degree in range(2, self.polynomial_degree + 1):
-                        poly_name = f"{col}_power_{degree}"
-                        X_engineered[poly_name] = X[col] ** degree
-        
-        return X_engineered
-
-
-def build_universal_preprocessor(X: pd.DataFrame, preprocessing_strategy='balanced') -> ColumnTransformer:
+def build_custom_preprocessor(X: pd.DataFrame, preprocessing_strategy='balanced') -> ColumnTransformer:
     """
     Build a comprehensive preprocessor that works well for all algorithm types.
     Uses the custom classes for more intelligent preprocessing.
@@ -529,36 +463,36 @@ def build_universal_preprocessor(X: pd.DataFrame, preprocessing_strategy='balanc
         if preprocessing_strategy == 'conservative':
             # Minimal preprocessing for tree-based algorithms
             numeric_steps = [
-                ('imputer', UniversalImputer(
+                ('imputer', CustomImputer(
                     numeric_strategy='median', 
                     categorical_strategy='most_frequent',
                     use_knn_for_numeric=False
                 )),
-                ('scaler', UniversalScaler(method='robust'))  # Light scaling
+                ('scaler', CustomScaler(method='robust'))  # Light scaling
             ]
             
         elif preprocessing_strategy == 'aggressive':
             # Heavy preprocessing for neural networks, SVR
             numeric_steps = [
-                ('imputer', UniversalImputer(
+                ('imputer', CustomImputer(
                     numeric_strategy='median',
                     categorical_strategy='most_frequent', 
                     use_knn_for_numeric=True,  # KNN imputation for better relationships
                     knn_neighbors=5
                 )),
-                ('scaler', UniversalScaler(method='standard')),  # Strong scaling
-                ('normalizer', UniversalScaler(method='quantile'))  # Additional normalization
+                ('scaler', CustomScaler(method='standard')),  # Strong scaling
+                ('normalizer', CustomScaler(method='quantile'))  # Additional normalization
             ]
             
         else:  # 'balanced'
             # Balanced preprocessing - good compromise for all algorithms
             numeric_steps = [
-                ('imputer', UniversalImputer(
+                ('imputer', CustomImputer(
                     numeric_strategy='median',
                     categorical_strategy='most_frequent',
                     use_knn_for_numeric=False
                 )),
-                ('scaler', UniversalScaler(method='robust')),  # Robust scaling
+                ('scaler', CustomScaler(method='robust')),  # Robust scaling
                 ('variance_filter', VarianceThreshold(threshold=0.001))  # Remove near-zero variance
             ]
         
@@ -573,7 +507,7 @@ def build_universal_preprocessor(X: pd.DataFrame, preprocessing_strategy='balanc
         if preprocessing_strategy == 'conservative':
             # Tree-friendly encoding
             categorical_steps = [
-                ('encoder', UniversalEncoder(
+                ('encoder', CustomEncoder(
                     high_cardinality_threshold=50,
                     encoding_strategy='ordinal'  # Space-efficient for trees
                 ))
@@ -582,7 +516,7 @@ def build_universal_preprocessor(X: pd.DataFrame, preprocessing_strategy='balanc
         elif preprocessing_strategy == 'aggressive':
             # Neural network friendly encoding
             categorical_steps = [
-                ('encoder', UniversalEncoder(
+                ('encoder', CustomEncoder(
                     high_cardinality_threshold=20,  # Lower threshold for one-hot
                     encoding_strategy='onehot'  # Prevent ordinal assumptions
                 ))
@@ -591,7 +525,7 @@ def build_universal_preprocessor(X: pd.DataFrame, preprocessing_strategy='balanc
         else:  # 'balanced'
             # Automatic strategy selection
             categorical_steps = [
-                ('encoder', UniversalEncoder(
+                ('encoder', CustomEncoder(
                     high_cardinality_threshold=50,
                     encoding_strategy='auto'  # Let encoder decide
                 ))
@@ -603,7 +537,7 @@ def build_universal_preprocessor(X: pd.DataFrame, preprocessing_strategy='balanc
     high_card_cols = column_info['high_cardinality']
     if high_card_cols:
         high_card_steps = [
-            ('encoder', UniversalEncoder(
+            ('encoder', CustomEncoder(
                 high_cardinality_threshold=100,  # Higher threshold for high-card columns
                 encoding_strategy='frequency'  # Use frequency encoding for high cardinality
             ))

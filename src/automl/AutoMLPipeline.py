@@ -2,7 +2,6 @@
 """
 from __future__ import annotations
 
-# from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 import pandas as pd
@@ -10,12 +9,10 @@ import numpy as np
 import logging
 
 from sklearn.pipeline import Pipeline
-import torch
 from automl.meta_features import extract_meta_features
 from automl.FeatureSelector import FeatureSelector
-from automl.optuna_hpo import hyperparam_search_optuna
-from automl.pre_processor_old import build_preprocessor
-from automl.smart_preprocessor import build_algorithm_aware_preprocessor, determine_preprocessing_strategy
+from automl.OptunaHPO import hyperparam_search_optuna
+from automl.pre_processor_util import build_algorithm_aware_preprocessor, determine_preprocessing_strategy
 from automl.algorithms import algorithms_dict
 from automl.meta_trainer import load_ranking_meta_model, predict_algorithm_rankings
 
@@ -28,7 +25,7 @@ class AutoML:
     def __init__(
         self,
         seed: int = 10,
-        timeout: int = 60,
+        timeout: float = 60.0,
         metric: str = "r2",
     ) -> None:
         self.seed = seed
@@ -73,23 +70,10 @@ class AutoML:
             test_size=0.2,
         )
         
-        # eval_time = int(self.timeout / len(selected_algorithms.columns))
-        eval_time = int(9*60*60 / 5) # 9 hours for 5 algorithms
-
+        eval_time = float(self.timeout / len(selected_algorithms.columns))
+        
         # for model_name in selected_algorithms.columns:
-        for model_name in [
-            "XGBRegressor",
-            "RandomForestRegressor",
-            "LGBMRegressor",
-            "HistGradientBoostingRegressor",
-            "DecisionTreeRegressor",
-            # "GradientBoostingRegressor",
-            # "LinearRegression",
-            # "MLPRegressor",
-            # "BayesianRidge",
-            # "SVR",
-            # "TabPFNRegressor"
-        ]:
+        for model_name in selected_algorithm_names:
             model_name_str = str(model_name)  # Ensure it's a string
             model = algorithms_dict[model_name_str]
             if model_name_str in ["LinearRegression", "BayesianRidge", "SVR"]:
@@ -99,10 +83,9 @@ class AutoML:
             logger.info(f"Selected model: {model_name_str}")
 
             # Build algorithm-specific preprocessor for this individual algorithm
-            # algorithm_specific_preprocessor = build_preprocessor(X)
             algorithm_specific_preprocessor = build_algorithm_aware_preprocessor(X, model_name_str)
             algorithm_strategy = determine_preprocessing_strategy(model_name_str)
-            # logger.info(f"Using {algorithm_strategy} preprocessing strategy for {model_name_str}")
+            logger.info(f"Using {algorithm_strategy} preprocessing strategy for {model_name_str}")
 
             model_pipeline = Pipeline([
                 ("preproc", algorithm_specific_preprocessor),  # Algorithm-specific preprocessing
